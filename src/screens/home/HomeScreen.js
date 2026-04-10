@@ -18,7 +18,7 @@ const RecentOrderCard = React.memo(({ order, navigation, colors }) => (
     >
         <View style={styles.orderTop}>
             <View>
-                <Text style={[styles.orderId, { color: colors.textMuted }]}>{order.id}</Text>
+                <Text style={[styles.orderId, { color: colors.textMuted }]}>{order.orderNo || order.id}</Text>
                 <Text style={[styles.orderCustomer, { color: colors.textPrimary }]}>{order.customerName}</Text>
             </View>
             <StatusBadge status={order.status} size="small" />
@@ -38,31 +38,30 @@ const HomeScreen = ({ navigation }) => {
     const C = getColors(isDark);
     const insets = useSafeAreaInsets();
     const orders = useOrderStore((s) => s.orders);
-    const fetchOrders = useOrderStore((s) => s.fetchOrders);
+    const initOrders = useOrderStore((s) => s.init);
     const isLoading = useOrderStore((s) => s.isLoading);
     const error = useOrderStore((s) => s.error);
     const clearError = useOrderStore((s) => s.clearError);
     const productionOrders = useProductionStore((s) => s.productionOrders);
-    const initProduction = useProductionStore((s) => s.init);
 
 
     const onRefresh = React.useCallback(async () => {
         try {
-            await Promise.all([
-                fetchOrders(),
-                initProduction()
-            ]);
+            await initOrders();
         } catch (error) {
             // Error managed by stores
         }
-    }, [fetchOrders, initProduction]);
+    }, [initOrders]);
 
     const stats = React.useMemo(() => {
         return {
-            pendingOrders: orders.filter(o => o.status === 'Pending').length,
-            inProduction: orders.filter(o => ['In Production', 'Marking', 'Cutting'].includes(o.status)).length,
-            readyOrders: orders.filter(o => o.status === 'Ready').length,
-            totalRevenue: orders.reduce((sum, o) => sum + o.totalAmount, 0),
+            pendingOrders: orders.filter(o => o?.status?.toLowerCase() === 'pending').length,
+            inProduction: orders.filter(o => {
+                const s = o?.status?.toLowerCase() || '';
+                return ['in production', 'marking', 'cutting', 'active'].includes(s);
+            }).length,
+            readyOrders: orders.filter(o => o?.status?.toLowerCase() === 'ready').length,
+            totalRevenue: orders.reduce((sum, o) => sum + (parseFloat(o.totalAmount) || 0), 0),
             recentOrders: orders.slice(0, 4)
         };
     }, [orders]);

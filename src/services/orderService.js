@@ -84,58 +84,64 @@ class OrderService {
 
     async addOrder(order) {
         try {
-            console.log("DEBUG: Preparing order data for Firestore...");
+            const { runTransaction, collection, doc, serverTimestamp } = await import('firebase/firestore');
+            
+            const result = await runTransaction(db, async (transaction) => {
+                // 1. Get the current counter
+                const counterRef = doc(db, 'metadata', 'counters');
+                const counterSnap = await transaction.get(counterRef);
+                
+                let lastNo = 1000;
+                if (counterSnap.exists()) {
+                    lastNo = counterSnap.data().lastOrderNo || 1000;
+                }
+                const nextNo = lastNo + 1;
+                const orderNo = `MDS-${nextNo}`;
 
-            // 1. Normalize Tailor Info
-            const tailorId = order.tailorId || null;
-            const tailorName = order.tailorName || 'Unknown Tailor';
+                // 2. Prepare order data
+                const measurements = {};
+                if (order.measurements) {
+                    Object.entries(order.measurements).forEach(([k, v]) => {
+                        measurements[k] = (v === undefined || v === null) ? "" : String(v);
+                    });
+                }
 
-            // 2. Normalize Measurements (Ensure strings/numbers, no undefined)
-            const measurements = {};
-            if (order.measurements) {
-                Object.entries(order.measurements).forEach(([k, v]) => {
-                    measurements[k] = (v === undefined || v === null) ? "" : String(v);
+                const payload = deepStripUndefined({
+                    ...order,
+                    orderNo,
+                    tailorId: order.tailorId || null,
+                    tailorName: order.tailorName || 'Unknown Tailor',
+                    measurements,
+                    status: order.status || 'Pending',
+                    productionStage: order.productionStage || 'pending',
+                    deliveryDate: toEpoch(order.deliveryDate),
+                    isSentToFinishing: order.isSentToFinishing || false,
+                    isDraft: order.isDraft || false,
+                    createdBy: auth.currentUser?.uid || 'anonymous',
+                    updatedBy: auth.currentUser?.uid || 'anonymous',
+                    createdAt: serverTimestamp(),
+                    updatedAt: serverTimestamp(),
                 });
-            }
 
-            // 3. Build compatibility payload with ownership/audit fields
-            const payload = deepStripUndefined({
-                ...order,
-                tailorId,
-                tailorName,
-                measurements,
-                status: order.status || 'active',
-                productionStage: order.productionStage || 'pending',
-                deliveryDate: toEpoch(order.deliveryDate),
-                isSentToFinishing: order.isSentToFinishing || false,
-                isDraft: order.isDraft || false,
-                createdBy: auth.currentUser?.uid || 'anonymous',
-                updatedBy: auth.currentUser?.uid || 'anonymous',
-                createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp(),
+                // 3. Create the new order document
+                const newOrderRef = doc(collection(db, 'orders'));
+                transaction.set(newOrderRef, payload);
+                
+                // 4. Update the counter
+                transaction.set(counterRef, { lastOrderNo: nextNo }, { merge: true });
+
+                return { id: newOrderRef.id, orderNo };
             });
-
-            // Remove numeric ID if present (Firestore will generate its own)
-            delete payload.id;
-
-            console.log("DEBUG: Data being sent to Firestore:", JSON.stringify(payload, null, 2));
-
-            const docRef = await addDoc(ORDERS_REF, payload);
-            console.log("DEBUG: Order created with ID:", docRef.id);
 
             return {
                 ...order,
-                id: docRef.id,
-                status: payload.status,
-                productionStage: payload.productionStage,
+                id: result.id,
+                orderNo: result.orderNo,
                 createdAt: now(),
                 updatedAt: now()
             };
         } catch (error) {
             console.error("Create Order Error:", error.message);
-            if (error.code === 'permission-denied') {
-                console.error("ROOT CAUSE: Firestore security rules blocked the write (Missing or insufficient permissions).");
-            }
             throw new Error(error.message || "Failed to create order");
         }
     }

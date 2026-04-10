@@ -25,7 +25,7 @@ const OrderListItem = React.memo(({ item, navigation, colors, onPriorityColor })
             <View style={styles.cardHeaderLeft}>
                 <View style={[styles.priorityDot, { backgroundColor: onPriorityColor(item.priority) }]} />
                 <View>
-                    <Text style={[styles.orderId, { color: colors.textMuted }]}>{item.id}</Text>
+                    <Text style={[styles.orderId, { color: colors.textMuted }]}>{item.orderNo || item.id}</Text>
                     <Text style={[styles.customerName, { color: colors.textPrimary }]}>{item.customerName}</Text>
                 </View>
             </View>

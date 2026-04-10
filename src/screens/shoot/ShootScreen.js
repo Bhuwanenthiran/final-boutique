@@ -1,175 +1,115 @@
-import React from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Image, Alert, Share, Platform } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SIZES, FONTS, SHADOWS } from '../../theme';
+import { COLORS, SIZES, FONTS } from '../../theme';
 import { useShootStore } from '../../store/shootStore';
 import { useOrderStore } from '../../store/orderStore';
 import { Card, LoadingOverlay, ErrorOverlay, EmptyState, ScreenWrapper } from '../../components/common';
-import { FormButton } from '../../components/forms';
-import * as ImagePicker from 'expo-image-picker';
 
-const ShootScreen = ({ navigation }) => {
+const OrderShootItem = React.memo(({ order, isCompleted, onToggle }) => (
+    <Card elevated style={styles.orderCard}>
+        <View style={styles.cardContent}>
+            <View style={styles.infoSection}>
+                <Text style={styles.customerName}>{order.customerName}</Text>
+                <Text style={styles.orderId}>ORDER {order.orderNo || order.id}</Text>
+                {order.designName && (
+                    <Text style={styles.designName}>{order.designName}</Text>
+                )}
+            </View>
+
+            <TouchableOpacity 
+                style={[
+                    styles.checkboxContainer, 
+                    isCompleted && styles.checkboxActive
+                ]} 
+                onPress={() => onToggle(order.id)}
+                activeOpacity={0.7}
+            >
+                <View style={[
+                    styles.checkbox, 
+                    { 
+                        borderColor: isCompleted ? COLORS.success : COLORS.border,
+                        backgroundColor: isCompleted ? COLORS.success : 'transparent' 
+                    }
+                ]}>
+                    {isCompleted && (
+                        <Ionicons name="checkmark" size={16} color="white" />
+                    )}
+                </View>
+                <Text style={[
+                    styles.checkboxLabel, 
+                    { color: isCompleted ? COLORS.success : COLORS.textSecondary }
+                ]}>
+                    {isCompleted ? 'Completed' : 'Pending'}
+                </Text>
+            </TouchableOpacity>
+        </View>
+    </Card>
+));
+
+const ShootScreen = () => {
     const insets = useSafeAreaInsets();
+    
     const orders = useOrderStore((s) => s.orders);
-    const shoots = useShootStore((s) => s.shoots);
-    const updateShoot = useShootStore((s) => s.updateShoot);
-    const addShoot = useShootStore((s) => s.addShoot);
-    const addImage = useShootStore((s) => s.addImage);
-    const isLoading = useShootStore((s) => s.isLoading);
+    const shootStatuses = useShootStore((s) => s.shootStatuses);
+    const initShootStore = useShootStore((s) => s.init);
+    const toggleStatus = useShootStore((s) => s.toggleShootStatus);
     const error = useShootStore((s) => s.error);
     const clearError = useShootStore((s) => s.clearError);
 
-    const handleUpload = async (uri) => {
-        try {
-            // Upload-ready structure: returns { localUri, remoteUrl, uploadedAt }
-            const uploadedImage = await uploadImage(uri);
-            
-            // Update store with the new image
-            if (shoots.length > 0) {
-                addImage(shoots[0].id, uploadedImage);
-            }
+    useEffect(() => {
+        initShootStore();
+    }, []);
 
-            Alert.alert(
-                'Upload Successful', 
-                'Media has been uploaded to cloud storage and associated with this order record.',
-                [{ text: 'OK' }]
-            );
-            
-            return uploadedImage;
-        } catch (error) {
-            // Handled by store ErrorOverlay
-        }
+    const handleToggle = (orderId) => {
+        toggleStatus(orderId).catch(() => {});
     };
 
-
-    const handlePickImage = async () => {
-        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (status !== 'granted') {
-            Alert.alert('Permission Denied', 'We need camera roll permissions to upload product photos.');
-            return;
-        }
-
-        const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsEditing: true,
-            aspect: [4, 5],
-            quality: 0.8,
-        });
-
-        if (!result.canceled && result.assets[0]) {
-            await handleUpload(result.assets[0].uri);
-        }
+    const renderItem = ({ item }) => {
+        const statusData = shootStatuses[item.id];
+        const isCompleted = statusData ? statusData.shootCompleted : false;
+        
+        return (
+            <OrderShootItem 
+                order={item} 
+                isCompleted={isCompleted} 
+                onToggle={handleToggle}
+            />
+        );
     };
-
-    const handleOpenCamera = async () => {
-        const { status } = await ImagePicker.requestCameraPermissionsAsync();
-        if (status !== 'granted') {
-            Alert.alert('Permission Denied', 'We need camera permissions to take product photos.');
-            return;
-        }
-
-        const result = await ImagePicker.launchCameraAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsEditing: true,
-            aspect: [4, 5],
-            quality: 0.8,
-        });
-
-        if (!result.canceled && result.assets[0]) {
-            await handleUpload(result.assets[0].uri);
-        }
-    };
-
-    const handleShare = async (item) => {
-        try {
-            // Fallback to local image if mainImage (URL) is not yet available
-            const imageUrl = item.mainImage || (item.images && item.images[0]?.remoteUrl);
-            if (!imageUrl) return;
-
-            await Share.share({
-                message: `Check out our latest design: ${item.orderId} - ${item.customerName}`,
-                url: imageUrl,
-            });
-        } catch {
-            // Share dismissed or failed silently
-        }
-    };
-
 
     return (
         <ScreenWrapper useSafeTop>
-            <LoadingOverlay visible={isLoading} message="Processing media..." />
+            {/* Error overlay for network failures */}
             <ErrorOverlay
                 visible={!!error}
                 error={error}
                 onClose={clearError}
             />
+            
             <View style={styles.header}>
                 <Text style={styles.headerTitle}>Media & Shoot</Text>
-                <Text style={styles.headerSubtitle}>{shoots.length} product shoots recorded</Text>
+                <Text style={styles.headerSubtitle}>Manage product photography status</Text>
             </View>
 
-            {shoots.length === 0 ? (
+            {orders.length === 0 ? (
                 <EmptyState
                     icon="camera-outline"
-                    title="No product photos yet"
-                    subtitle="Shoots from completed orders will appear here"
+                    title="No orders found"
+                    subtitle="Orders will appear here once they are created."
                 />
             ) : (
-                <ScrollView
+                <FlatList
+                    data={orders}
+                    renderItem={renderItem}
+                    keyExtractor={(item) => item.id}
+                    contentContainerStyle={[
+                        styles.listContent, 
+                        { paddingBottom: insets.bottom + 40 }
+                    ]}
                     showsVerticalScrollIndicator={false}
-                    contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 20 }]}
-                >
-                    <View style={styles.shootGrid}>
-                        {shoots.map((item) => (
-                            <Card key={item.id} style={styles.shootCard}>
-                                <TouchableOpacity onPress={() => { }}>
-                                    <Image source={{ uri: item.mainImage }} style={styles.shootImage} />
-                                    <View style={styles.shootOverlay}>
-                                        <View style={[styles.statusTag, { backgroundColor: item.status === 'published' ? COLORS.success : COLORS.warning }]}>
-                                            <Text style={styles.statusTagText}>{item.status}</Text>
-                                        </View>
-                                    </View>
-                                </TouchableOpacity>
-                                <View style={styles.shootInfo}>
-                                    <View>
-                                        <Text style={styles.shootOrderId}>ORDER {item.orderId}</Text>
-                                        <Text style={styles.shootCustomer}>{item.customerName}</Text>
-                                    </View>
-                                    <View style={styles.shootActions}>
-                                        <TouchableOpacity style={styles.actionIconBtn} onPress={() => handleShare(item)}>
-                                            <Ionicons name="share-social-outline" size={20} color={COLORS.primary} />
-                                        </TouchableOpacity>
-                                        <TouchableOpacity style={styles.actionIconBtn}>
-                                            <Ionicons name="cloud-upload-outline" size={20} color={COLORS.primary} />
-                                        </TouchableOpacity>
-                                    </View>
-                                </View>
-                            </Card>
-                        ))}
-                    </View>
-
-                    <View style={styles.uploadSection}>
-                        <Card style={styles.uploadCard}>
-                            <Ionicons name="cloud-upload-outline" size={40} color={COLORS.primary} style={{ marginBottom: SIZES.sm }} />
-                            <Text style={styles.uploadTitle}>New Product Shoot</Text>
-                            <Text style={styles.uploadSubtitle}>Capture and upload product photography for social media</Text>
-                            <FormButton
-                                title="Select from Gallery"
-                                icon="images-outline"
-                                onPress={handlePickImage}
-                                variant="outline"
-                            />
-                            <FormButton
-                                title="Open Camera"
-                                icon="camera-outline"
-                                onPress={handleOpenCamera}
-                                style={{ marginTop: SIZES.sm }}
-                            />
-                        </Card>
-                    </View>
-                </ScrollView>
+                />
             )}
         </ScreenWrapper>
     );
@@ -193,88 +133,70 @@ const styles = StyleSheet.create({
         color: COLORS.textMuted,
         marginTop: 2,
     },
-    scrollContent: {
+    listContent: {
         paddingHorizontal: SIZES.lg,
+        paddingTop: SIZES.sm,
     },
-    shootGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        justifyContent: 'space-between',
-    },
-    shootCard: {
-        width: '48%',
-        padding: 0,
-        overflow: 'hidden',
+    orderCard: {
         marginBottom: SIZES.md,
+        padding: SIZES.md,
     },
-    shootImage: {
-        width: '100%',
-        height: 200,
-        backgroundColor: COLORS.bgElevated,
-    },
-    shootOverlay: {
-        position: 'absolute',
-        top: 8,
-        left: 8,
-    },
-    statusTag: {
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: SIZES.radiusSm,
-    },
-    statusTagText: {
-        fontSize: 10,
-        ...FONTS.bold,
-        color: COLORS.textOnPrimary,
-        textTransform: 'uppercase',
-    },
-    shootInfo: {
-        padding: SIZES.sm,
+    cardContent: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
+        justifyContent: 'space-between',
     },
-    shootOrderId: {
-        fontSize: 10,
-        ...FONTS.medium,
-        color: COLORS.textMuted,
+    infoSection: {
+        flex: 1,
+        marginRight: SIZES.md,
     },
-    shootCustomer: {
-        fontSize: SIZES.small,
+    customerName: {
+        fontSize: SIZES.bodyLg,
         ...FONTS.semiBold,
         color: COLORS.textPrimary,
-        marginTop: 2,
     },
-    shootActions: {
-        flexDirection: 'row',
+    orderId: {
+        fontSize: 11,
+        ...FONTS.medium,
+        color: COLORS.textMuted,
+        marginTop: 1,
+        textTransform: 'uppercase',
     },
-    actionIconBtn: {
-        marginLeft: 8,
-        padding: 4,
-    },
-    uploadSection: {
-        marginTop: SIZES.xl,
-        marginBottom: SIZES.xxxl,
-    },
-    uploadCard: {
-        alignItems: 'center',
-        padding: SIZES.xl,
-        borderStyle: 'dashed',
-        borderWidth: 2,
-        borderColor: COLORS.primarySoft,
-    },
-    uploadTitle: {
-        fontSize: SIZES.subtitle,
-        ...FONTS.bold,
-        color: COLORS.textPrimary,
-    },
-    uploadSubtitle: {
+    designName: {
         fontSize: SIZES.small,
         ...FONTS.regular,
-        color: COLORS.textMuted,
-        textAlign: 'center',
+        color: COLORS.textSecondary,
         marginTop: 4,
-        marginBottom: SIZES.xl,
+        fontStyle: 'italic',
+    },
+    checkboxContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: SIZES.sm,
+        paddingHorizontal: SIZES.md,
+        borderRadius: SIZES.radiusFull,
+        backgroundColor: COLORS.bgElevated,
+        borderWidth: 1,
+        borderColor: COLORS.borderLight,
+        minWidth: 110,
+        justifyContent: 'center',
+    },
+    checkboxActive: {
+        backgroundColor: COLORS.successLight,
+        borderColor: COLORS.success + '20',
+    },
+    checkbox: {
+        width: 20,
+        height: 20,
+        borderRadius: 6,
+        borderWidth: 2,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    checkboxLabel: {
+        fontSize: 12,
+        ...FONTS.semiBold,
+        marginLeft: SIZES.sm,
     },
 });
 

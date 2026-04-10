@@ -1,63 +1,99 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, FlatList, Platform } from 'react-native';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, ScrollView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SIZES, FONTS, SHADOWS } from '../../theme';
+import { useOrderStore } from '../../store/orderStore';
 import { useProductionStore } from '../../store/productionStore';
-import { StatusBadge, Card, SectionHeader, EmptyState, LoadingOverlay, ErrorCard, ErrorOverlay, ScreenWrapper } from '../../components/common';
-import { SearchBar, FilterChip } from '../../components/forms';
+import {
+    StatusBadge, Card, EmptyState,
+    LoadingOverlay, ErrorCard, ErrorOverlay, ScreenWrapper
+} from '../../components/common';
 
-// All 6 production stages in order
-const PRODUCTION_STAGES_LIST = [
-    { key: 'marking',     label: 'Marking',                icon: 'pencil-outline',                color: COLORS.slate },
-    { key: 'production1', label: 'P1-Base Stitching',      icon: 'construct-outline',             color: COLORS.primary },
-    { key: 'production2', label: 'P2-Aari/Embroidery',     icon: 'flower-outline',                color: COLORS.accent },
-    { key: 'production3', label: 'P3-Add-ons & Detailing', icon: 'sparkles-outline',              color: COLORS.primary },
-    { key: 'cutting',     label: 'Cutting',                icon: 'cut-outline',                   color: COLORS.warning },
-    { key: 'stitching',   label: 'Stitching',              icon: 'checkmark-done-circle-outline', color: COLORS.success },
+// ─── Inline FilterChip (forms/index.js has no FilterChip export) ─────────────
+const FilterChip = ({ label, active, onPress, disabled }) => (
+    <TouchableOpacity
+        onPress={onPress}
+        disabled={disabled}
+        style={[
+            chipStyles.chip,
+            active && chipStyles.chipActive,
+        ]}
+    >
+        <Text style={[chipStyles.chipText, active && chipStyles.chipTextActive]}>
+            {label}
+        </Text>
+    </TouchableOpacity>
+);
+
+const chipStyles = StyleSheet.create({
+    chip: {
+        paddingHorizontal: 14,
+        paddingVertical: 7,
+        borderRadius: 20,
+        backgroundColor: COLORS.bgCard,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        marginRight: 8,
+    },
+    chipActive: {
+        backgroundColor: COLORS.primary,
+        borderColor: COLORS.primary,
+    },
+    chipText: {
+        fontSize: 13,
+        color: COLORS.textSecondary,
+        fontWeight: '500',
+    },
+    chipTextActive: {
+        color: COLORS.textOnPrimary,
+        fontWeight: '700',
+    },
+});
+
+
+// ─── Stage Config ────────────────────────────────────────────────────────────
+const PRODUCTION_STAGES = [
+    { key: 'marking',     label: 'Marking',          icon: 'pencil-outline',                color: COLORS.slate },
+    { key: 'production1', label: 'P1-Base',           icon: 'construct-outline',             color: COLORS.primary },
+    { key: 'production2', label: 'P2-Aari',           icon: 'flower-outline',                color: COLORS.accent },
+    { key: 'production3', label: 'P3-Add-ons',        icon: 'sparkles-outline',              color: COLORS.primary },
+    { key: 'cutting',     label: 'Cutting',           icon: 'cut-outline',                   color: COLORS.warning },
+    { key: 'stitching',   label: 'Stitching',         icon: 'checkmark-done-circle-outline', color: COLORS.success },
 ];
 
-const STAGE_ORDER = PRODUCTION_STAGES_LIST.map(s => s.key);
+const STAGE_KEYS = PRODUCTION_STAGES.map(s => s.key);
 
-const OrderCard = React.memo(({ item, isLoading, cycleStatus }) => {
-    const isReady = item.status === 'Ready';
+// ─── Order Card ───────────────────────────────────────────────────────────────
+const OrderCard = React.memo(({ item, onCycleStatus, isLoading }) => {
+    const isReady = (item.status || '').toLowerCase() === 'ready';
+    const currentStageIdx = STAGE_KEYS.indexOf(item.productionStage);
 
-    const getStageIcon = (stage) => {
-        const found = PRODUCTION_STAGES_LIST.find(s => s.key === stage);
-        if (found) return found.icon;
-        if (stage === 'pending') return 'time-outline';
-        return 'ellipse-outline';
-    };
-
-    const getStageColor = (stage) => {
-        const found = PRODUCTION_STAGES_LIST.find(s => s.key === stage);
-        return found ? found.color : COLORS.textMuted;
-    };
-
-    const statusActions = ['Pending', 'Marking', 'Cutting', 'In Production', 'Ready'];
-    const stageColor = getStageColor(item.productionStage);
+    const stageInfo = PRODUCTION_STAGES.find(s => s.key === item.productionStage);
+    const stageColor = stageInfo ? stageInfo.color : COLORS.textMuted;
+    const stageIcon = stageInfo ? stageInfo.icon : (item.productionStage === 'pending' ? 'time-outline' : 'ellipse-outline');
 
     return (
         <Card elevated style={styles.taskCard}>
-            {/* Card Header */}
+            {/* Header */}
             <View style={styles.taskHeader}>
                 <View style={styles.taskHeaderLeft}>
-                    <View style={[styles.stageIcon, { backgroundColor: stageColor + '18' }]}>
-                        <Ionicons name={getStageIcon(item.productionStage)} size={18} color={stageColor} />
+                    <View style={[styles.stageIcon, { backgroundColor: stageColor + '22' }]}>
+                        <Ionicons name={stageIcon} size={18} color={stageColor} />
                     </View>
                     <View>
-                        <Text style={styles.taskId}>{item.id}</Text>
+                        <Text style={styles.taskId}>{item.orderNo || item.id}</Text>
                         <Text style={styles.taskCustomer}>{item.customerName}</Text>
                     </View>
                 </View>
                 <StatusBadge status={item.status} size="small" />
             </View>
 
-            {/* Design Info */}
+            {/* Info Row */}
             <View style={styles.taskInfo}>
                 <View style={styles.taskInfoItem}>
                     <Ionicons name="shirt-outline" size={13} color={COLORS.textMuted} />
-                    <Text style={styles.taskInfoText}>{item.designName}</Text>
+                    <Text style={styles.taskInfoText}>{item.designName || 'No design'}</Text>
                 </View>
                 <View style={styles.taskInfoItem}>
                     <Ionicons name="person-outline" size={13} color={COLORS.textMuted} />
@@ -65,13 +101,11 @@ const OrderCard = React.memo(({ item, isLoading, cycleStatus }) => {
                 </View>
             </View>
 
-            {/* Production Stages Mini — 6-stage indicator */}
+            {/* Stage Progress Bar */}
             <View style={styles.stagesRow}>
-                {PRODUCTION_STAGES_LIST.map((stage, idx) => {
-                    const currentIdx = STAGE_ORDER.indexOf(item.productionStage);
-                    const thisIdx = idx;
-                    const isCompleted = currentIdx > thisIdx || isReady;
-                    const isActive = currentIdx === thisIdx && !isReady;
+                {PRODUCTION_STAGES.map((stage, idx) => {
+                    const isCompleted = currentStageIdx > idx || isReady;
+                    const isActive = currentStageIdx === idx && !isReady;
                     return (
                         <View key={stage.key} style={styles.miniStage}>
                             <View style={[
@@ -79,14 +113,11 @@ const OrderCard = React.memo(({ item, isLoading, cycleStatus }) => {
                                 isCompleted && { backgroundColor: COLORS.success },
                                 isActive && { backgroundColor: stage.color },
                             ]} />
-                            <Text
-                                style={[
-                                    styles.miniStageLabel,
-                                    isActive && { color: stage.color, ...FONTS.semiBold },
-                                    isCompleted && { color: COLORS.success },
-                                ]}
-                                numberOfLines={1}
-                            >
+                            <Text style={[
+                                styles.miniStageLabel,
+                                isActive && { color: stage.color, ...FONTS.semiBold },
+                                isCompleted && { color: COLORS.success },
+                            ]} numberOfLines={1}>
                                 {stage.label}
                             </Text>
                         </View>
@@ -94,12 +125,11 @@ const OrderCard = React.memo(({ item, isLoading, cycleStatus }) => {
                 })}
             </View>
 
-            {/* Actions */}
+            {/* Footer Actions */}
             <View style={styles.taskActions}>
-                {/* Info Display (Simplified) */}
                 <View style={styles.taskFooterLeft}>
                     <Ionicons
-                        name={isReady ? "checkmark-done-circle" : "time-outline"}
+                        name={isReady ? 'checkmark-done-circle' : 'time-outline'}
                         size={16}
                         color={isReady ? COLORS.success : COLORS.textMuted}
                     />
@@ -107,12 +137,10 @@ const OrderCard = React.memo(({ item, isLoading, cycleStatus }) => {
                         {isReady ? 'Finished' : 'In Progress'}
                     </Text>
                 </View>
-
-                {/* Status Cycle / Finish Button */}
                 {!isReady && (
                     <TouchableOpacity
                         style={styles.statusCycleBtn}
-                        onPress={() => cycleStatus(item.id, item.productionStage)}
+                        onPress={() => onCycleStatus(item.id, item.productionStage)}
                         disabled={isLoading}
                     >
                         <Ionicons name="arrow-forward-outline" size={14} color={COLORS.primary} />
@@ -126,78 +154,92 @@ const OrderCard = React.memo(({ item, isLoading, cycleStatus }) => {
     );
 });
 
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 const StitchingProductionScreen = ({ navigation }) => {
     const insets = useSafeAreaInsets();
-    const productionOrders = useProductionStore((s) => s.productionOrders);
-    const tailors = useProductionStore((s) => s.tailors);
-    const filterTailor = useProductionStore((s) => s.filterTailor);
-    const setFilterTailor = useProductionStore((s) => s.setFilterTailor);
-    const updateProductionStatus = useProductionStore((s) => s.updateProductionStatus);
-    const getFilteredProduction = useProductionStore((s) => s.getFilteredProduction);
-    const isLoading = useProductionStore((s) => s.isLoading);
-    const error = useProductionStore((s) => s.error);
-    const clearError = useProductionStore((s) => s.clearError);
-    const init = useProductionStore((s) => s.init);
 
-    const filteredOrders = getFilteredProduction();
+    // Single call per store — follows React Rules of Hooks correctly
+    const orders      = useOrderStore(s => s.orders);
+    const tailors     = useOrderStore(s => s.tailors);
+    const orderLoad   = useOrderStore(s => s.isLoading);
+    const orderErr    = useOrderStore(s => s.error);
 
-    const onRefresh = async () => {
-        await init();
-    };
+    const filterTailor     = useProductionStore(s => s.filterTailor);
+    const setFilterTailor  = useProductionStore(s => s.setFilterTailor);
+    const updateProdStatus = useProductionStore(s => s.updateProductionStatus);
+    const clearError       = useProductionStore(s => s.clearError);
 
-    const cycleStatus = async (orderId, currentStage) => {
+    // isUpdating is ONLY true when the user taps "Next Stage" — NOT on initial load.
+    // This prevents the LoadingOverlay from covering the order list on first render.
+    const [isUpdating, setIsUpdating] = useState(false);
+
+    const isLoading = orderLoad;  // Only use orderStore's loading for initial load
+    const error     = orderErr;
+
+    // Filter: show all non-finished orders
+    const filteredOrders = useMemo(() => {
+        const safeOrders = Array.isArray(orders) ? orders : [];
+        return safeOrders.filter(o => {
+            const status = (o?.status || '').toLowerCase().trim();
+            if (['ready', 'delivered', 'cancelled', 'on_hold', 'hold'].includes(status)) return false;
+            if (filterTailor !== 'all' && o.tailorId !== filterTailor) return false;
+            return true;
+        });
+    }, [orders, filterTailor]);
+
+    // AppInitializer already calls orderStore.init() at app startup which sets up
+    // a real-time onSnapshot listener. Calling init() again here would CANCEL
+    // that existing subscription and restart it — causing all orders to briefly
+    // disappear. So we simply read from the already-live store.
+    const onRefresh = useCallback(() => {
+        // The store is already real-time. No manual refresh needed.
+        // Pull-to-refresh is kept for UX convention only.
+    }, []);
+
+    const cycleStatus = useCallback(async (orderId, currentStage) => {
         const stages = ['pending', 'marking', 'production1', 'production2', 'production3', 'cutting', 'stitching'];
         const idx = stages.indexOf(currentStage);
-
-        if (idx === -1) return;
-
-        if (currentStage === 'stitching') {
-            try {
-                // Ensure consistency: status="ready", productionStage="READY"
-                await updateProductionStatus(orderId, 'status', 'ready');
-                await updateProductionStatus(orderId, 'productionStage', 'READY');
-            } catch (error) {
-                // Handled in store
-            }
-            return;
-        }
-
-        const nextStage = stages[idx + 1];
-        let nextStatusLabel = 'In Production';
-        if (nextStage === 'marking') nextStatusLabel = 'Marking';
-        if (nextStage === 'cutting') nextStatusLabel = 'Cutting';
-
+        setIsUpdating(true);
         try {
-            await updateProductionStatus(orderId, 'status', nextStatusLabel);
-            await updateProductionStatus(orderId, 'productionStage', nextStage);
-        } catch (error) {
-            // Error overlay handled by store state
+            if (currentStage === 'stitching') {
+                // Single atomic write: sets status='ready', productionStage='READY',
+                // finishing.isReady=true — which is what FinishingScreen filters on.
+                const { productionService } = await import('../../services/productionService');
+                await productionService.markAsReady(orderId, 'Production');
+            } else {
+                const nextStage = idx === -1 ? 'marking' : (stages[idx + 1] || 'stitching');
+                let nextStatusLabel = 'In Production';
+                if (nextStage === 'marking') nextStatusLabel = 'Marking';
+                if (nextStage === 'cutting') nextStatusLabel = 'Cutting';
+                await updateProdStatus(orderId, 'status', nextStatusLabel);
+                await updateProdStatus(orderId, 'productionStage', nextStage);
+            }
+        } finally {
+            setIsUpdating(false);
         }
-    };
+    }, [updateProdStatus]);
 
-    const renderOrderCard = ({ item }) => (
-        <OrderCard
-            item={item}
-            cycleStatus={cycleStatus}
-            isLoading={isLoading}
-        />
-    );
+    const renderItem = useCallback(({ item }) => (
+        <OrderCard item={item} onCycleStatus={cycleStatus} isLoading={isLoading} />
+    ), [cycleStatus, isLoading]);
 
     return (
         <ScreenWrapper useSafeTop>
-            <LoadingOverlay visible={isLoading && productionOrders.length > 0 && !error} message="Updating status..." />
+            <LoadingOverlay visible={isUpdating} message="Updating status..." />
             <ErrorOverlay
-                visible={!!error && productionOrders.length > 0}
+                visible={!!error && filteredOrders.length > 0}
                 error={error}
                 onRetry={onRefresh}
                 onClose={clearError}
             />
+
+            {/* Header */}
             <View style={styles.header}>
                 <Text style={styles.headerTitle}>Production</Text>
-                <Text style={styles.headerSubtitle}>{productionOrders.length} active orders</Text>
+                <Text style={styles.headerSubtitle}>{filteredOrders.length} orders in pipeline</Text>
             </View>
 
-            {/* Tailor Filter */}
+            {/* Tailor Filter Chips */}
             <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -211,7 +253,7 @@ const StitchingProductionScreen = ({ navigation }) => {
                     onPress={() => setFilterTailor('all')}
                     disabled={isLoading}
                 />
-                {tailors.map(t => (
+                {(tailors || []).map(t => (
                     <FilterChip
                         key={t.id}
                         label={t.name}
@@ -222,11 +264,12 @@ const StitchingProductionScreen = ({ navigation }) => {
                 ))}
             </ScrollView>
 
-            {isLoading && productionOrders.length === 0 ? (
-                <View style={{ flex: 1, padding: SIZES.lg }}>
-                    <Text style={{ color: COLORS.textMuted, textAlign: 'center' }}>Loading production...</Text>
+            {/* Body */}
+            {isLoading && filteredOrders.length === 0 ? (
+                <View style={styles.centerMsg}>
+                    <Text style={styles.centerMsgText}>Loading production...</Text>
                 </View>
-            ) : error && productionOrders.length === 0 ? (
+            ) : error && filteredOrders.length === 0 ? (
                 <View style={{ flex: 1, justifyContent: 'center' }}>
                     <ErrorCard
                         title="Failed to load Production"
@@ -243,14 +286,14 @@ const StitchingProductionScreen = ({ navigation }) => {
             ) : (
                 <FlatList
                     data={filteredOrders}
-                    renderItem={renderOrderCard}
-                    keyExtractor={(item) => item.id}
+                    renderItem={renderItem}
+                    keyExtractor={item => item.id}
                     contentContainerStyle={[styles.listContent, { paddingBottom: 100 + insets.bottom }]}
                     showsVerticalScrollIndicator={false}
                     style={{ flex: 1 }}
                     refreshing={isLoading}
                     onRefresh={onRefresh}
-                    initialNumToRender={5}
+                    initialNumToRender={6}
                     windowSize={5}
                     maxToRenderPerBatch={5}
                     removeClippedSubviews={Platform.OS === 'android'}
@@ -260,11 +303,8 @@ const StitchingProductionScreen = ({ navigation }) => {
     );
 };
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: COLORS.bg,
-    },
     header: {
         paddingHorizontal: SIZES.lg,
         paddingTop: SIZES.lg,
@@ -289,6 +329,17 @@ const styles = StyleSheet.create({
     listContent: {
         paddingHorizontal: SIZES.lg,
         paddingBottom: 20,
+    },
+    centerMsg: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: SIZES.lg,
+    },
+    centerMsgText: {
+        color: COLORS.textMuted,
+        fontSize: SIZES.body,
+        ...FONTS.regular,
     },
     taskCard: {
         marginBottom: SIZES.md,
@@ -386,16 +437,18 @@ const styles = StyleSheet.create({
     statusCycleBtn: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: COLORS.primaryMuted,
+        gap: 5,
         paddingHorizontal: SIZES.md,
-        paddingVertical: SIZES.sm,
+        paddingVertical: SIZES.xs + 2,
         borderRadius: SIZES.radiusFull,
+        backgroundColor: COLORS.primaryMuted,
+        borderWidth: 1,
+        borderColor: COLORS.primarySoft,
     },
     statusCycleText: {
         fontSize: SIZES.small,
         color: COLORS.primary,
-        ...FONTS.medium,
-        marginLeft: 4,
+        ...FONTS.semiBold,
     },
 });
 

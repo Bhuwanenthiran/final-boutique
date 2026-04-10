@@ -1,89 +1,54 @@
 import { create } from 'zustand';
-import { productionService } from '../services/productionService';
+import { shootService } from '../services/shootService';
 
-/**
- * ShootStore — manages product shoot/media state.
- * 
- * ARCHITECTURE: Screen → Store → Service → Data Source
- * This store NEVER imports mockData directly. All data flows through productionService.
- */
 export const useShootStore = create((set, get) => ({
-    shoots: [],
+    shootStatuses: {}, 
     isLoading: false,
     error: null,
+    unsubscribe: null,
 
     clearError: () => set({ error: null }),
 
-    /**
-     * Initialize shoot data from the service layer.
-     */
-    init: async () => {
-        set({ isLoading: true, error: null });
-        try {
-            const shoots = await productionService.getShoots();
-            set({ shoots, isLoading: false });
-        } catch (error) {
-            set({ isLoading: false, error: 'Failed to load media records.' });
-            // Error handled in UI
-        }
+    init: () => {
+        // Prevent multiple listeners
+        if (get().unsubscribe) return;
+
+        console.log("Starting Shoot Media real-time sync...");
+        const unsub = shootService.subscribeShootStatuses((statuses) => {
+            set({ shootStatuses: statuses, isLoading: false });
+        });
+        
+        set({ unsubscribe: unsub });
     },
 
-    getShootByOrder: (orderId) => {
-        return get().shoots.find(s => s.orderId === orderId) || null;
-    },
+    toggleShootStatus: async (orderId) => {
+        const currentStatuses = get().shootStatuses;
+        const currentData = currentStatuses[orderId];
+        const currentStatus = currentData ? currentData.shootCompleted : false;
+        const newStatus = !currentStatus;
 
-    addShoot: async (shoot) => {
-        set({ isLoading: true, error: null });
+        // --- Optimistic Update (Instant UI change) ---
+        const optimisticStatuses = {
+            ...currentStatuses,
+            [orderId]: { 
+                ...currentData, 
+                shootCompleted: newStatus,
+                isOptimistic: true // Mark as pending sync
+            }
+        };
+        set({ shootStatuses: optimisticStatuses, error: null });
+
         try {
-            const newShoot = await productionService.addShoot(shoot);
-            set((state) => ({
-                shoots: [...state.shoots, newShoot],
-                isLoading: false,
-            }));
+            await shootService.updateShootStatus(orderId, newStatus);
+            // The real-time listener will replace the optimistic state 
+            // once the server confirms the write.
         } catch (error) {
-            set({ isLoading: false, error: 'Failed to create shoot record.' });
-            // Error handled in UI
+            // Revert on error
+            set({ 
+                shootStatuses: currentStatuses,
+                error: 'Failed to sync with cloud. Check your connection.' 
+            });
             throw error;
         }
     },
-
-    updateShoot: async (id, updates) => {
-        set({ isLoading: true, error: null });
-        try {
-            await productionService.updateShoot(id, updates);
-            set((state) => ({
-                shoots: state.shoots.map(s => s.id === id ? { ...s, ...updates } : s),
-                isLoading: false,
-            }));
-        } catch (error) {
-            set({ isLoading: false, error: 'Failed to update shoot status.' });
-            // Error handled in UI
-            throw error;
-        }
-    },
-
-    addImage: (shootId, imageObj) => set((state) => ({
-        shoots: state.shoots.map(s =>
-            s.id === shootId ? { ...s, images: [...s.images, imageObj] } : s
-        ),
-    })),
-
-    uploadImage: async (uri, path = 'shoots') => {
-        set({ isLoading: true, error: null });
-        try {
-            const uploaded = await productionService.uploadImage(uri, path);
-            set({ isLoading: false });
-            return uploaded;
-        } catch (error) {
-            set({ isLoading: false, error: 'Upload failed. Check your network.' });
-            throw error;
-        }
-    },
-
-    removeImage: (shootId, imageId) => set((state) => ({
-        shoots: state.shoots.map(s =>
-            s.id === shootId ? { ...s, images: s.images.filter(i => (i.remoteUrl || i.localUri) !== imageId) } : s
-        ),
-    })),
 }));
-

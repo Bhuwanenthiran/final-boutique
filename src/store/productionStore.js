@@ -47,10 +47,18 @@ export const useProductionStore = create((set, get) => ({
 
     getFilteredProduction: () => {
         const { productionOrders, filterTailor } = get();
-        let filtered = [...productionOrders];
+        
+        // Hide orders that are already finished
+        let filtered = productionOrders.filter(o => {
+            const status = o?.status?.toLowerCase() || '';
+            return status !== 'ready' && status !== 'delivered';
+        });
+
+        // Apply tailor filter
         if (filterTailor !== 'all') {
             filtered = filtered.filter(o => o.tailorId === filterTailor);
         }
+
         return filtered;
     },
 

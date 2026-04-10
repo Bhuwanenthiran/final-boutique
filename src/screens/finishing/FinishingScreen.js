@@ -157,7 +157,7 @@ const FinishingScreen = ({ navigation }) => {
                                 onPress={() => setSelectedOrder(order.id)}
                                 disabled={isLoading}
                             >
-                                <Text style={[styles.orderTabId, selectedOrder === order.id && styles.orderTabIdActive]}>{order.id}</Text>
+                                <Text style={[styles.orderTabId, selectedOrder === order.id && styles.orderTabIdActive]}>{order.orderNo || order.id}</Text>
                                 <Text style={[styles.orderTabName, selectedOrder === order.id && styles.orderTabNameActive]} numberOfLines={1}>
                                     {order.customerName}
                                 </Text>

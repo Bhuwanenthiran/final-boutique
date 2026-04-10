@@ -39,7 +39,7 @@ const OrderDetailScreen = ({ route, navigation }) => {
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
                     <Ionicons name="arrow-back" size={22} color={COLORS.textPrimary} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>{order.id}</Text>
+                <Text style={styles.headerTitle}>{order.orderNo || order.id}</Text>
                 <TouchableOpacity style={styles.moreBtn}>
                     <Ionicons name="ellipsis-vertical" size={20} color={COLORS.textPrimary} />
                 </TouchableOpacity>
