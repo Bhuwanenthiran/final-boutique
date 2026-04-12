@@ -224,7 +224,7 @@ const StitchingProductionScreen = ({ navigation }) => {
     ), [cycleStatus, isLoading]);
 
     return (
-        <ScreenWrapper useSafeTop>
+        <ScreenWrapper useSafeTop useSafeBottom={false}>
             <LoadingOverlay visible={isUpdating} message="Updating status..." />
             <ErrorOverlay
                 visible={!!error && filteredOrders.length > 0}
@@ -288,7 +288,7 @@ const StitchingProductionScreen = ({ navigation }) => {
                     data={filteredOrders}
                     renderItem={renderItem}
                     keyExtractor={item => item.id}
-                    contentContainerStyle={[styles.listContent, { paddingBottom: 100 + insets.bottom }]}
+                    contentContainerStyle={[styles.listContent, { paddingBottom: 140 + insets.bottom }]}
                     showsVerticalScrollIndicator={false}
                     style={{ flex: 1 }}
                     refreshing={isLoading}

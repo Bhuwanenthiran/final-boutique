@@ -82,7 +82,7 @@ const HomeScreen = ({ navigation }) => {
     ], [C]);
 
     return (
-        <ScreenWrapper useSafeTop>
+        <ScreenWrapper useSafeTop useSafeBottom={false}>
             <LoadingOverlay visible={isLoading && orders.length === 0 && !error} message="Loading dashboard..." />
             <ErrorOverlay
                 visible={!!error && orders.length > 0}
@@ -113,7 +113,6 @@ const HomeScreen = ({ navigation }) => {
                             <Text style={[styles.greeting, { color: C.textMuted }]}>Welcome back</Text>
                             <Text style={[styles.title, { color: C.textPrimary }]}>Mellinam Designer Studio</Text>
                         </View>
-
                     </View>
 
                     {/* Stats Cards */}
@@ -151,19 +150,31 @@ const HomeScreen = ({ navigation }) => {
                     {/* Revenue Card */}
                     <View style={[styles.revenueCard, { backgroundColor: isDark ? C.bgCard : C.textPrimary }]}>
                         <View style={styles.revenueHeader}>
-                            <View>
+                            <View style={{ flex: 1, marginRight: SIZES.md }}>
                                 <Text style={[styles.revenueLabel, { color: isDark ? C.textSecondary : C.textLight }]}>Total Revenue</Text>
-                                <Text style={[styles.revenueValue, { color: isDark ? C.textPrimary : C.textOnPrimary }]}>₹{stats.totalRevenue.toLocaleString('en-IN')}</Text>
+                                <Text 
+                                    style={[styles.revenueValue, { color: isDark ? C.textPrimary : C.textOnPrimary }]}
+                                    numberOfLines={1}
+                                    adjustsFontSizeToFit
+                                    minimumFontScale={0.5}
+                                >
+                                    ₹{stats.totalRevenue.toLocaleString('en-IN')}
+                                </Text>
                             </View>
                             <View style={[styles.revenueBadge, { backgroundColor: isDark ? C.bgElevated : 'rgba(107, 158, 107, 0.2)' }]}>
-                                <Ionicons name="wallet-outline" size={14} color={C.success} />
+                                <Ionicons name="wallet-outline" size={12} color={C.success} />
                                 <Text style={[styles.revenueBadgeText, { color: C.success }]}>{(stats.collectionRate * 100).toFixed(0)}% Paid</Text>
                             </View>
                         </View>
                         <View style={[styles.revenueBar, { backgroundColor: isDark ? C.border : 'rgba(255,255,255,0.15)' }]}>
                             <View style={[styles.revenueBarFill, { width: `${stats.collectionRate * 100}%`, backgroundColor: C.primary }]} />
                         </View>
-                        <Text style={[styles.revenueSubtext, { color: isDark ? C.textMuted : C.textLight }]}>₹{stats.pendingCollection.toLocaleString('en-IN')} pending collection</Text>
+                        <View style={styles.revenueFooter}>
+                            <Ionicons name="information-circle-outline" size={12} color={isDark ? C.textMuted : C.textLight} />
+                            <Text style={[styles.revenueSubtext, { color: isDark ? C.textMuted : C.textLight, marginLeft: 4 }]}>
+                                ₹{stats.pendingCollection.toLocaleString('en-IN')} pending collection
+                            </Text>
+                        </View>
                     </View>
 
                     {/* Quick Actions */}
@@ -228,7 +239,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingHorizontal: SIZES.lg,
         paddingTop: SIZES.lg,
-        paddingBottom: SIZES.base,
+        paddingBottom: SIZES.md,
     },
     greeting: {
         fontSize: SIZES.body,
@@ -298,7 +309,9 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.textPrimary,
         borderRadius: SIZES.radiusXl,
         padding: SIZES.lg,
-        marginVertical: SIZES.sm,
+        marginTop: SIZES.sm,
+        marginBottom: SIZES.xl,
+        ...SHADOWS.medium,
     },
     revenueHeader: {
         flexDirection: 'row',
@@ -317,7 +330,7 @@ const styles = StyleSheet.create({
         color: COLORS.textOnPrimary,
         ...FONTS.bold,
         marginTop: 4,
-        letterSpacing: -1,
+        letterSpacing: -0.5,
     },
     revenueBadge: {
         flexDirection: 'row',
@@ -345,10 +358,14 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.primary,
         borderRadius: 2,
     },
+    revenueFooter: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
     revenueSubtext: {
         fontSize: SIZES.caption,
         color: COLORS.textLight,
-        ...FONTS.regular,
+        ...FONTS.medium,
     },
     sectionTitle: {
         fontSize: SIZES.subtitle,

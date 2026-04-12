@@ -185,6 +185,25 @@ const OrderDetailScreen = ({ route, navigation }) => {
                         <View style={[styles.progressBarFill, { width: `${(order.advanceAmount / order.totalAmount) * 100}%` }]} />
                     </View>
                     <Text style={styles.progressPercent}>{Math.round((order.advanceAmount / order.totalAmount) * 100)}% paid</Text>
+                    
+                    {order.balanceAmount > 0 && (
+                        <TouchableOpacity 
+                            style={styles.paymentSettleFullBtn}
+                            onPress={() => {
+                                Alert.alert(
+                                    'Record Payment',
+                                    `Mark the balance of ₹${order.balanceAmount.toLocaleString('en-IN')} as paid?`,
+                                    [
+                                        { text: 'Cancel', style: 'cancel' },
+                                        { text: 'Yes, Paid', onPress: () => useOrderStore.getState().settleBalance(order.id) }
+                                    ]
+                                );
+                            }}
+                        >
+                            <Ionicons name="cash-outline" size={18} color={COLORS.textOnPrimary} />
+                            <Text style={styles.paymentSettleFullBtnText}>Record Full Payment Received</Text>
+                        </TouchableOpacity>
+                    )}
                 </Card>
 
                 {/* Notes */}
@@ -489,6 +508,22 @@ const styles = StyleSheet.create({
         color: COLORS.error,
         textAlign: 'center',
         marginTop: 100,
+    },
+    paymentSettleFullBtn: {
+        backgroundColor: COLORS.primary,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: SIZES.md,
+        borderRadius: SIZES.radiusMd,
+        marginTop: SIZES.md,
+        ...SHADOWS.small,
+    },
+    paymentSettleFullBtnText: {
+        fontSize: SIZES.body,
+        color: COLORS.textOnPrimary,
+        ...FONTS.bold,
+        marginLeft: SIZES.sm,
     },
 });
 

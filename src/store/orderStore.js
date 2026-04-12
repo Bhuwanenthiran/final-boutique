@@ -188,4 +188,31 @@ export const useOrderStore = create((set, get) => ({
             throw error;
         }
     },
+
+    settleBalance: async (orderId) => {
+        set({ isLoading: true, error: null });
+        try {
+            const orders = get().orders;
+            const order = orders.find(o => o.id === orderId);
+            if (!order) throw new Error('Order not found');
+
+            const updates = {
+                advanceAmount: order.totalAmount,
+                balanceAmount: 0,
+                updatedAt: Date.now()
+            };
+
+            await orderService.updateOrder(orderId, updates);
+            
+            set((state) => ({
+                orders: state.orders.map(o => 
+                    o.id === orderId ? { ...o, ...updates } : o
+                ),
+                isLoading: false
+            }));
+        } catch (error) {
+            set({ isLoading: false, error: 'Payment update failed.' });
+            throw error;
+        }
+    },
 }));

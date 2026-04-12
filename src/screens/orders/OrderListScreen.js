@@ -46,7 +46,9 @@ const OrderListItem = React.memo(({ item, navigation, colors, onPriorityColor })
         <View style={[styles.cardFooter, { borderTopColor: colors.borderLight }]}>
             <View>
                 <Text style={[styles.amountLabel, { color: colors.textMuted }]}>Total</Text>
-                <Text style={[styles.amountValue, { color: colors.primary }]}>₹{item.totalAmount.toLocaleString('en-IN')}</Text>
+                <Text style={[styles.amountValue, { color: colors.primary }]} numberOfLines={1} adjustsFontSizeToFit>
+                    ₹{item.totalAmount.toLocaleString('en-IN')}
+                </Text>
             </View>
             <View style={styles.balanceWrap}>
                 <Text style={[styles.balanceLabel, { color: colors.textMuted }]}>Balance</Text>
@@ -104,7 +106,7 @@ const OrderListScreen = ({ navigation }) => {
     );
 
     return (
-        <ScreenWrapper useSafeTop>
+        <ScreenWrapper useSafeTop useSafeBottom={false}>
             <LoadingOverlay visible={isLoading && orders.length > 0 && !error} message="Updating orders..." />
             <ErrorOverlay
                 visible={!!error && orders.length > 0}
@@ -171,7 +173,7 @@ const OrderListScreen = ({ navigation }) => {
                     data={filteredOrders}
                     renderItem={renderOrder}
                     keyExtractor={(item) => item.id}
-                    contentContainerStyle={[styles.listContent, { paddingBottom: 100 + insets.bottom }]}
+                    contentContainerStyle={[styles.listContent, { paddingBottom: 140 + insets.bottom }]}
                     showsVerticalScrollIndicator={false}
                     style={{ flex: 1 }}
                     refreshing={isLoading}

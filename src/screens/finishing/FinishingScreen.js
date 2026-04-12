@@ -304,6 +304,40 @@ const FinishingScreen = ({ navigation }) => {
                         )}
 
                         <View style={{ height: 40 }} />
+                        {/* Payment Status (for Ready orders) */}
+                        {finishing.isReady && (
+                            <Card elevated style={styles.paymentCard}>
+                                <View style={styles.paymentInfo}>
+                                    <View>
+                                        <Text style={styles.paymentLabel}>Payment Status</Text>
+                                        <Text style={[styles.paymentStatus, { color: orders.find(o => o.id === selectedOrder)?.balanceAmount > 0 ? COLORS.error : COLORS.success }]}>
+                                            {orders.find(o => o.id === selectedOrder)?.balanceAmount > 0 
+                                                ? `Balance: ₹${orders.find(o => o.id === selectedOrder)?.balanceAmount.toLocaleString('en-IN')}` 
+                                                : 'Fully Paid'}
+                                        </Text>
+                                    </View>
+                                    {orders.find(o => o.id === selectedOrder)?.balanceAmount > 0 && (
+                                        <TouchableOpacity 
+                                            style={styles.settleBtnInline}
+                                            onPress={() => {
+                                                const order = orders.find(o => o.id === selectedOrder);
+                                                Alert.alert(
+                                                    'Record Payment',
+                                                    `Mark the balance of ₹${order.balanceAmount.toLocaleString('en-IN')} as paid?`,
+                                                    [
+                                                        { text: 'Cancel', style: 'cancel' },
+                                                        { text: 'Yes, Paid', onPress: () => useOrderStore.getState().settleBalance(order.id) }
+                                                    ]
+                                                );
+                                            }}
+                                        >
+                                            <Ionicons name="card-outline" size={16} color={COLORS.primary} />
+                                            <Text style={styles.settleBtnInlineText}>Settle Payment</Text>
+                                        </TouchableOpacity>
+                                    )}
+                                </View>
+                            </Card>
+                        )}
                     </ScrollView>
                 </>
             )}
@@ -599,6 +633,41 @@ const styles = StyleSheet.create({
         color: COLORS.success,
         ...FONTS.bold,
         marginTop: SIZES.sm,
+    },
+    paymentCard: {
+        marginTop: SIZES.md,
+        backgroundColor: COLORS.bgCard,
+        borderLeftWidth: 4,
+        borderLeftColor: COLORS.primary,
+    },
+    paymentInfo: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    paymentLabel: {
+        fontSize: SIZES.caption,
+        color: COLORS.textMuted,
+        ...FONTS.regular,
+    },
+    paymentStatus: {
+        fontSize: SIZES.body,
+        ...FONTS.bold,
+        marginTop: 2,
+    },
+    settleBtnInline: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: COLORS.primaryMuted,
+        paddingHorizontal: SIZES.md,
+        paddingVertical: SIZES.sm,
+        borderRadius: SIZES.radiusFull,
+    },
+    settleBtnInlineText: {
+        fontSize: SIZES.small,
+        color: COLORS.primary,
+        ...FONTS.semiBold,
+        marginLeft: SIZES.base,
     },
     modalOverlay: {
         flex: 1,

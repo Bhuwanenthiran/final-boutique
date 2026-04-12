@@ -181,7 +181,7 @@ const OrderEntryContainer = ({ navigation }) => {
     };
 
     return (
-        <ScreenWrapper useSafeTop>
+        <ScreenWrapper useSafeTop useSafeBottom={false}>
             <KeyboardAvoidingView
                 style={[styles.container, { backgroundColor: C.bg }]}
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}

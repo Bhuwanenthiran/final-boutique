@@ -484,7 +484,7 @@ const CatalogueScreen = () => {
             </Modal>
             
             <TouchableOpacity 
-                style={styles.fab} 
+                style={[styles.fab, { bottom: 40 + insets.bottom }]} 
                 onPress={openAddModal}
                 activeOpacity={0.8}
             >

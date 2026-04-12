@@ -251,7 +251,7 @@ export default StyleSheet.create({
     bottomBar: {
         flexDirection: 'row',
         paddingHorizontal: SIZES.lg,
-        paddingVertical: SIZES.md,
+        paddingVertical: SIZES.sm,
         backgroundColor: COLORS.bgCard,
         borderTopWidth: 1,
         borderTopColor: COLORS.borderLight,
@@ -279,19 +279,20 @@ export default StyleSheet.create({
         ...FONTS.semiBold,
     },
     designSectionBadge: {
-        fontSize: SIZES.caption,
+        fontSize: 10,
         paddingHorizontal: SIZES.sm,
-        paddingVertical: 3,
-        borderRadius: SIZES.radiusFull,
+        paddingVertical: 4,
+        borderRadius: SIZES.radiusSm,
         overflow: 'hidden',
-        ...FONTS.medium,
+        ...FONTS.bold,
+        textTransform: 'uppercase',
     },
     designSectionBadgeSelected: {
         backgroundColor: COLORS.primaryMuted,
         color: COLORS.primary,
     },
     designSectionBadgeRequired: {
-        backgroundColor: COLORS.bgElevated,
+        backgroundColor: '#F1F3F5',
         color: COLORS.textMuted,
     },
 
@@ -322,8 +323,8 @@ export default StyleSheet.create({
         backgroundColor: COLORS.primaryMuted,
     },
     designGridImage: {
-        width: 56,
-        height: 56,
+        width: 72,
+        height: 72,
         borderRadius: SIZES.radiusMd,
         backgroundColor: COLORS.bgElevated,
         justifyContent: 'center',
