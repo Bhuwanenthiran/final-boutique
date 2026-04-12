@@ -1,23 +1,24 @@
 import React, { useState } from 'react';
 import {
     View, Text, ScrollView, StyleSheet, TouchableOpacity,
-    FlatList, Modal, Platform, TextInput, KeyboardAvoidingView,
+    FlatList, Modal, Platform, TextInput, KeyboardAvoidingView, Keyboard
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SIZES, FONTS, SHADOWS } from '../../theme';
 import { useCatalogueStore } from '../../store/catalogueStore';
+import { useOrderStore } from '../../store/orderStore';
 import { Card, EmptyState, StatusBadge, LoadingOverlay, ErrorOverlay, ScreenWrapper } from '../../components/common';
-import { FormButton } from '../../components/forms';
+import { FormButton, SearchBar } from '../../components/forms';
 import { formatDate } from '../../services/dateUtils';
 
 const TABS = [
     { key: 'hold', label: 'Hold', icon: 'pause-circle-outline' },
     { key: 'cancelled', label: 'Cancelled', icon: 'close-circle-outline' },
     { key: 'alteration', label: 'Alterations', icon: 'build-outline' },
+    { key: 'delivered', label: 'Delivered', icon: 'checkmark-circle-outline' },
 ];
 
-// ─── Tab config for the Add modal ───
 const TAB_ADD_CONFIG = {
     hold: {
         title: 'Add Hold Order',
@@ -37,11 +38,41 @@ const TAB_ADD_CONFIG = {
         color: COLORS.slate,
         notePlaceholder: 'Alteration details (e.g. Shorten sleeve by 1 inch)',
     },
+    delivered: {
+        title: 'Add Delivered Record',
+        icon: 'checkmark-circle-outline',
+        color: COLORS.success,
+        notePlaceholder: 'Delivery notes (e.g. Delivered to home)',
+    },
 };
 
 const EMPTY_FORM = { orderNo: '', name: '', note: '' };
 
 // ─── Card Components ─────────────────────────────────────────────────────────
+
+const DeliveredItem = React.memo(({ item, onConfirm, isLoading }) => (
+    <Card elevated style={styles.catalogueCard}>
+        <View style={styles.cardRow}>
+            <View style={[styles.cardIconWrap, { backgroundColor: COLORS.success + '15' }]}>
+                <Ionicons name="checkmark-circle-outline" size={22} color={COLORS.success} />
+            </View>
+            <View style={{ flex: 1, marginLeft: SIZES.md }}>
+                <View style={styles.rowBetween}>
+                    <Text style={styles.cardTitle}>{item.customerName}</Text>
+                    <Text style={styles.priceText}>₹{item.totalAmount || 0}</Text>
+                </View>
+                <Text style={styles.cardSubtitle}>{item.orderNo} — {item.designName || 'Boutique Item'}</Text>
+                <Text style={styles.cardMeta}>Delivered: {formatDate(item.deliveredAt)} • {item.deliveredBy}</Text>
+            </View>
+        </View>
+        <View style={styles.cardActions}>
+            <TouchableOpacity style={styles.actionBtn} onPress={() => onConfirm('delete_delivered', item)} disabled={isLoading}>
+                <Ionicons name="trash-outline" size={16} color={COLORS.error} />
+                <Text style={[styles.actionText, { color: COLORS.error }]}>Delete Record</Text>
+            </TouchableOpacity>
+        </View>
+    </Card>
+));
 
 const HoldItem = React.memo(({ item, onConfirm, isLoading }) => (
     <Card elevated style={styles.catalogueCard}>
@@ -152,9 +183,19 @@ const CatalogueScreen = () => {
     const addHoldOrder = useCatalogueStore((s) => s.addHoldOrder);
     const addCancelledOrder = useCatalogueStore((s) => s.addCancelledOrder);
     const addAlteration = useCatalogueStore((s) => s.addAlteration);
-    const isLoading = useCatalogueStore((s) => s.isLoading);
+    
+    // Order Store for Delivered tab
+    const orders = useOrderStore((s) => s.orders);
+    const deleteOrder = useOrderStore((s) => s.deleteOrder);
+
+    const catalogueLoading = useCatalogueStore((s) => s.isLoading);
+    const orderLoading = useOrderStore((s) => s.isLoading);
+    // Only show global loading overlay for confirm actions (delete/restore), NOT for adds
+    const isLoading = catalogueLoading || orderLoading;
     const error = useCatalogueStore((s) => s.error);
     const clearError = useCatalogueStore((s) => s.clearError);
+
+    const [searchQuery, setSearchQuery] = useState('');
 
     // ─── Confirmation modal state ───
     const [showConfirm, setShowConfirm] = useState(false);
@@ -179,6 +220,7 @@ const CatalogueScreen = () => {
             else if (modalAction === 'delete_hold') await removeHoldOrder(modalItem.id);
             else if (modalAction === 'delete_cancelled') await deleteCancelledOrder(modalItem.id);
             else if (modalAction === 'delete_alteration') await deleteAlteration(modalItem.id);
+            else if (modalAction === 'delete_delivered') await deleteOrder(modalItem.id);
             else if (modalAction === 'complete_alteration') await updateAlteration(modalItem.id, { status: 'completed' });
         } catch (_) { /* handled by store */ }
         setShowConfirm(false);
@@ -195,44 +237,88 @@ const CatalogueScreen = () => {
         if (!form.name.trim()) { setFormError('Customer name is required.'); return; }
         setFormError('');
         setIsSaving(true);
+
+        // Snapshot values before closing modal so async ops still have correct data
+        const snapshot = {
+            orderNo: form.orderNo.trim(),
+            customerName: form.name.trim(),
+            note: form.note.trim(),
+            tab: activeTab,
+        };
+
+        // Close the modal IMMEDIATELY so the screen never goes blank
+        Keyboard.dismiss();
+        setShowAdd(false);
+
         try {
             const base = {
-                orderNo: form.orderNo.trim(),
-                customerName: form.name.trim(),
-                note: form.note.trim(),
+                orderNo: snapshot.orderNo,
+                customerName: snapshot.customerName,
+                note: snapshot.note,
                 createdAt: Date.now(),
             };
-            if (activeTab === 'hold') {
+
+            if (snapshot.tab === 'hold') {
                 await addHoldOrder({ ...base, orderId: base.orderNo, reason: base.note, holdDate: Date.now(), status: 'hold' });
-            } else if (activeTab === 'cancelled') {
+            } else if (snapshot.tab === 'cancelled') {
                 await addCancelledOrder({ ...base, orderId: base.orderNo, reason: base.note, cancelledDate: Date.now(), status: 'cancelled', refunded: false });
+            } else if (snapshot.tab === 'delivered') {
+                await useOrderStore.getState().addOrder({
+                    ...base,
+                    designName: 'Catalogue Entry',
+                    status: 'delivered',
+                    deliveredAt: Date.now(),
+                    deliveredBy: 'Manual Entry',
+                    totalAmount: 0,
+                    advanceAmount: 0,
+                    balanceAmount: 0,
+                    priority: 'low',
+                    items: []
+                });
             } else {
                 await addAlteration({ ...base, item: base.orderNo, type: 'Alteration', notes: base.note, date: Date.now(), status: 'pending' });
             }
-            setShowAdd(false);
-        } catch (_) { setFormError('Failed to save. Please try again.'); }
-        setIsSaving(false);
+        } catch (err) {
+            console.error('Manual add error:', err);
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     const renderHoldItem = ({ item }) => <HoldItem item={item} onConfirm={confirmAction} isLoading={isLoading} />;
     const renderCancelledItem = ({ item }) => <CancelledItem item={item} onConfirm={confirmAction} isLoading={isLoading} />;
     const renderAlterationItem = ({ item }) => <AlterationItem item={item} onConfirm={confirmAction} isLoading={isLoading} />;
+    const renderDeliveredItem = ({ item }) => <DeliveredItem item={item} onConfirm={confirmAction} isLoading={isLoading} />;
 
     const getCurrentData = () => {
         switch (activeTab) {
             case 'hold': return { data: holdOrders, renderItem: renderHoldItem, emptyIcon: 'pause-outline', emptyTitle: 'No hold orders' };
             case 'cancelled': return { data: cancelledOrders, renderItem: renderCancelledItem, emptyIcon: 'close-outline', emptyTitle: 'No cancelled orders' };
             case 'alteration': return { data: alterations, renderItem: renderAlterationItem, emptyIcon: 'build-outline', emptyTitle: 'No alterations' };
+            case 'delivered': {
+                const delivered = orders.filter(o => o.status === 'delivered');
+                return { data: delivered, renderItem: renderDeliveredItem, emptyIcon: 'checkmark-circle-outline', emptyTitle: 'No delivery records' };
+            }
             default: return { data: [], renderItem: () => null, emptyIcon: 'ellipse', emptyTitle: 'No data' };
         }
     };
 
-    const { data, renderItem, emptyIcon, emptyTitle } = getCurrentData();
+    const { data: sourceData, renderItem, emptyIcon, emptyTitle } = getCurrentData();
     const addConfig = TAB_ADD_CONFIG[activeTab];
+
+    const filteredData = React.useMemo(() => {
+        if (!searchQuery.trim()) return sourceData;
+        const q = searchQuery.toLowerCase();
+        return sourceData.filter(item => {
+            const name = item.customerName || item.name || '';
+            const orderNo = item.orderNo || '';
+            return name.toLowerCase().includes(q) || orderNo.toLowerCase().includes(q);
+        });
+    }, [searchQuery, sourceData]);
 
     return (
         <ScreenWrapper useSafeTop>
-            <LoadingOverlay visible={isLoading && !error} message="Processing..." />
+            <LoadingOverlay visible={isSaving} message="Saving..." />
             <ErrorOverlay visible={!!error} error={error} onRetry={executeAction} onClose={clearError} />
 
             {/* Header */}
@@ -242,6 +328,14 @@ const CatalogueScreen = () => {
                     <Text style={styles.headerSubtitle}>Hold, cancelled & alteration records</Text>
                 </View>
             </View>
+
+            {/* Search */}
+            <SearchBar
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholder={`Search ${activeTab} records...`}
+                style={{ marginBottom: SIZES.sm }}
+            />
 
             {/* Segmented Control */}
             <View style={styles.segmentedControl}>
@@ -259,30 +353,26 @@ const CatalogueScreen = () => {
             </View>
 
             {/* List */}
-            {data.length === 0 ? (
-                <EmptyState icon={emptyIcon} title={emptyTitle} subtitle="Tap + to add a new record" />
+            {filteredData.length === 0 ? (
+                <EmptyState 
+                    icon={emptyIcon} 
+                    title={emptyTitle} 
+                    subtitle="Tap + to add a new record" 
+                    actionLabel="Add Record"
+                    onAction={openAddModal}
+                />
             ) : (
                 <FlatList
-                    data={data}
+                    data={filteredData}
                     renderItem={renderItem}
                     keyExtractor={(item) => item.id}
-                    contentContainerStyle={[styles.listContent, { paddingBottom: 120 + insets.bottom }]}
+                    contentContainerStyle={[styles.listContent, { paddingBottom: 150 + insets.bottom }]}
                     showsVerticalScrollIndicator={false}
                     initialNumToRender={8}
-                    windowSize={5}
-                    maxToRenderPerBatch={10}
-                    removeClippedSubviews={Platform.OS === 'android'}
                 />
             )}
 
-            {/* ── FAB ── */}
-            <TouchableOpacity
-                style={[styles.fab, { bottom: 24 + insets.bottom }]}
-                onPress={openAddModal}
-                activeOpacity={0.85}
-            >
-                <Ionicons name="add" size={28} color="#fff" />
-            </TouchableOpacity>
+
 
             {/* ── Confirmation Modal ── */}
             <Modal visible={showConfirm} transparent animationType="fade">
@@ -392,6 +482,14 @@ const CatalogueScreen = () => {
                     </TouchableOpacity>
                 </KeyboardAvoidingView>
             </Modal>
+            
+            <TouchableOpacity 
+                style={styles.fab} 
+                onPress={openAddModal}
+                activeOpacity={0.8}
+            >
+                <Ionicons name="add" size={30} color={COLORS.textOnPrimary} />
+            </TouchableOpacity>
         </ScreenWrapper>
     );
 };
@@ -426,6 +524,8 @@ const styles = StyleSheet.create({
     cardTitle: { fontSize: SIZES.bodyLg, color: COLORS.textPrimary, ...FONTS.semiBold },
     cardSubtitle: { fontSize: SIZES.small, color: COLORS.textSecondary, ...FONTS.regular, marginTop: 1 },
     cardMeta: { fontSize: SIZES.caption, color: COLORS.textMuted, ...FONTS.regular, marginTop: 2 },
+    rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    priceText: { fontSize: SIZES.bodyLg, color: COLORS.success, ...FONTS.bold },
     reasonWrap: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: COLORS.bgElevated, borderRadius: SIZES.radiusSm, padding: SIZES.md, marginTop: SIZES.md },
     reasonText: { fontSize: SIZES.small, color: COLORS.textSecondary, ...FONTS.regular, marginLeft: 6, flex: 1, lineHeight: 18 },
     cardActions: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: SIZES.md, paddingTop: SIZES.sm, borderTopWidth: 1, borderTopColor: COLORS.borderLight },
@@ -441,6 +541,8 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.primary,
         justifyContent: 'center',
         alignItems: 'center',
+        zIndex: 9999,
+        elevation: 5,
         ...SHADOWS.large,
     },
     // Modals shared

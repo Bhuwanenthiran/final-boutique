@@ -60,9 +60,9 @@ export const useCatalogueStore = create((set, get) => ({
     /**
      * Clean up all subscriptions.
      */
-    unsubscribeFromCatalogue: () => {
+    destroy: () => {
         const { unsubscribes } = get();
-        console.log("Unsubscribing from Catalogue Firestore updates...");
+        console.log("Cleaning up Catalogue listeners...");
         if (unsubscribes.hold) unsubscribes.hold();
         if (unsubscribes.cancelled) unsubscribes.cancelled();
         if (unsubscribes.alterations) unsubscribes.alterations();
@@ -75,11 +75,8 @@ export const useCatalogueStore = create((set, get) => ({
     addHoldOrder: async (order) => {
         set({ isLoading: true, error: null });
         try {
-            const newOrder = await catalogueService.addHoldOrder(order);
-            set((state) => ({
-                holdOrders: [...state.holdOrders, newOrder],
-                isLoading: false,
-            }));
+            await catalogueService.addHoldOrder(order);
+            set({ isLoading: false });
         } catch (error) {
             set({ isLoading: false, error: 'Failed to place order on hold.' });
             // Error handled in UI
@@ -91,10 +88,7 @@ export const useCatalogueStore = create((set, get) => ({
         set({ isLoading: true, error: null });
         try {
             await catalogueService.removeHoldOrder(id);
-            set((state) => ({
-                holdOrders: state.holdOrders.filter(h => h.id !== id),
-                isLoading: false,
-            }));
+            set({ isLoading: false });
         } catch (error) {
             set({ isLoading: false, error: 'Failed to remove hold order.' });
             // Error handled in UI
@@ -106,10 +100,7 @@ export const useCatalogueStore = create((set, get) => ({
         set({ isLoading: true, error: null });
         try {
             await catalogueService.restoreHoldOrder(id);
-            set((state) => ({
-                holdOrders: state.holdOrders.filter(h => h.id !== id),
-                isLoading: false,
-            }));
+            set({ isLoading: false });
         } catch (error) {
             set({ isLoading: false, error: 'Failed to restore hold order.' });
             // Error handled in UI
@@ -120,11 +111,8 @@ export const useCatalogueStore = create((set, get) => ({
     addCancelledOrder: async (order) => {
         set({ isLoading: true, error: null });
         try {
-            const newOrder = await catalogueService.addCancelledOrder(order);
-            set((state) => ({
-                cancelledOrders: [...state.cancelledOrders, newOrder],
-                isLoading: false,
-            }));
+            await catalogueService.addCancelledOrder(order);
+            set({ isLoading: false });
         } catch (error) {
             set({ isLoading: false, error: 'Failed to process cancellation.' });
             // Error handled in UI
@@ -136,10 +124,7 @@ export const useCatalogueStore = create((set, get) => ({
         set({ isLoading: true, error: null });
         try {
             await catalogueService.deleteCancelledOrder(id);
-            set((state) => ({
-                cancelledOrders: state.cancelledOrders.filter(c => c.id !== id),
-                isLoading: false,
-            }));
+            set({ isLoading: false });
         } catch (error) {
             set({ isLoading: false, error: 'Failed to delete cancellation record.' });
             // Error handled in UI
@@ -150,11 +135,8 @@ export const useCatalogueStore = create((set, get) => ({
     addAlteration: async (alteration) => {
         set({ isLoading: true, error: null });
         try {
-            const newAlteration = await catalogueService.addAlteration(alteration);
-            set((state) => ({
-                alterations: [...state.alterations, newAlteration],
-                isLoading: false,
-            }));
+            await catalogueService.addAlteration(alteration);
+            set({ isLoading: false });
         } catch (error) {
             set({ isLoading: false, error: 'Failed to add alteration record.' });
             // Error handled in UI
@@ -166,10 +148,7 @@ export const useCatalogueStore = create((set, get) => ({
         set({ isLoading: true, error: null });
         try {
             await catalogueService.updateAlteration(id, updates);
-            set((state) => ({
-                alterations: state.alterations.map(a => a.id === id ? { ...a, ...updates } : a),
-                isLoading: false,
-            }));
+            set({ isLoading: false });
         } catch (error) {
             set({ isLoading: false, error: 'Failed to update alteration.' });
             // Error handled in UI
@@ -181,14 +160,12 @@ export const useCatalogueStore = create((set, get) => ({
         set({ isLoading: true, error: null });
         try {
             await catalogueService.deleteAlteration(id);
-            set((state) => ({
-                alterations: state.alterations.filter(a => a.id !== id),
-                isLoading: false,
-            }));
+            set({ isLoading: false });
         } catch (error) {
             set({ isLoading: false, error: 'Failed to delete alteration record.' });
-            // Error handled in UI
             throw error;
         }
     },
+
+
 }));

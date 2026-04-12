@@ -5,7 +5,7 @@
 
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { initializeAuth, getReactNativePersistence, getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
@@ -20,28 +20,30 @@ const firebaseConfig = {
   measurementId: "G-9YKV5CY1SN",
 };
 
-// Prevent duplicate app initialization (important for hot-reload in Expo)
+// Prevent duplicate app initialization
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-// ── Auth: use AsyncStorage persistence on mobile, default on web ──────────────
+// ── Auth: persistence ──────────────────────────────────────────────────
 let auth;
 if (Platform.OS === 'web') {
     auth = getAuth(app);
 } else {
-    // initializeAuth can only be called ONCE per app instance.
-    // On Expo hot-reload, the module re-executes but the app already has auth,
-    // so initializeAuth throws. We catch that and get the existing instance.
     try {
         auth = initializeAuth(app, {
             persistence: getReactNativePersistence(AsyncStorage),
         });
     } catch (e) {
-        // Already initialized — retrieve the existing auth instance
         auth = getAuth(app);
     }
 }
 
-export { auth };
-export const db = getFirestore(app);
+// ── Firestore: Offline Persistence ──────────────────────────────────────
+const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager()
+  })
+});
+
+export { auth, db };
 export const storage = getStorage(app);
 export default app;

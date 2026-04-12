@@ -72,7 +72,7 @@ const LoginScreen = () => {
                             label="Email Address"
                             value={email}
                             onChangeText={(v) => { setEmail(v); setFieldError(null); }}
-                            placeholder="admin@mellinamdesignerstudio.com"
+                            placeholder="yourname@mellinam.com"
                             keyboardType="email-address"
                             autoCapitalize="none"
                             icon="mail-outline"
@@ -106,11 +106,11 @@ const LoginScreen = () => {
                         </View>
 
                         <View style={styles.demoLoginWrap}>
-                            <Text style={[styles.demoText, { color: C.textMuted }]}>Testing Credentials:</Text>
+                            <Text style={[styles.demoText, { color: C.textMuted }]}>Quick Login Credentials:</Text>
                             <View style={styles.demoRow}>
                                 <TouchableOpacity
                                     style={[styles.demoChip, { backgroundColor: C.bgElevated, borderColor: C.border }]}
-                                    onPress={() => { setEmail('admin@atelier.com'); setPassword('admin123'); setFieldError(null); clearError(); }}
+                                    onPress={() => { setEmail('mellinamdesignerstudio007@gmail.com'); setPassword('admin123'); setFieldError(null); clearError(); }}
                                     disabled={isLoading}
                                 >
                                     <Text style={[styles.demoChipText, { color: C.textSecondary }]}>Admin Login</Text>

@@ -21,6 +21,12 @@ export const useShootStore = create((set, get) => ({
         set({ unsubscribe: unsub });
     },
 
+    destroy: () => {
+        const { unsubscribe } = get();
+        if (unsubscribe) unsubscribe();
+        set({ unsubscribe: null, shootStatuses: {} });
+    },
+
     toggleShootStatus: async (orderId) => {
         const currentStatuses = get().shootStatuses;
         const currentData = currentStatuses[orderId];

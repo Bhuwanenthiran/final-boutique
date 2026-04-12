@@ -1,13 +1,17 @@
 import React from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Platform, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SIZES, FONTS, SHADOWS } from '../../theme';
+import { COLORS, SIZES, FONTS, SHADOWS, getColors } from '../../theme';
+import { useThemeStore } from '../../store/themeStore';
 import { useOrderStore } from '../../store/orderStore';
 import { StatusBadge, Card, Divider, ScreenWrapper } from '../../components/common';
+import { FormButton } from '../../components/forms';
 import { formatDate } from '../../services/dateUtils';
 
 const OrderDetailScreen = ({ route, navigation }) => {
+    const isDark = useThemeStore(s => s.isDark);
+    const C = getColors(isDark);
     const insets = useSafeAreaInsets();
     const { orderId } = route.params;
     const orders = useOrderStore((s) => s.orders);
@@ -21,16 +25,24 @@ const OrderDetailScreen = ({ route, navigation }) => {
         );
     }
 
+    // Stage keys MUST exactly match what StitchingProductionScreen writes to order.productionStage
     const progressStages = [
-        { key: 'pending', label: 'Pending', icon: 'time-outline' },
-        { key: 'marking', label: 'Marking', icon: 'pencil-outline' },
-        { key: 'cutting', label: 'Cutting', icon: 'cut-outline' },
-        { key: 'stitching', label: 'Stitching', icon: 'construct-outline' },
-        { key: 'production', label: 'Production', icon: 'cog-outline' },
-        { key: 'completed', label: 'Completed', icon: 'checkmark-circle-outline' },
+        { key: 'pending',     label: 'Order Placed',  icon: 'time-outline' },
+        { key: 'marking',     label: 'Marking',        icon: 'pencil-outline' },
+        { key: 'production1', label: 'Base Stitching', icon: 'construct-outline' },
+        { key: 'production2', label: 'Aari / Embr.',   icon: 'flower-outline' },
+        { key: 'production3', label: 'Add-ons',        icon: 'sparkles-outline' },
+        { key: 'cutting',     label: 'Cutting',        icon: 'cut-outline' },
+        { key: 'stitching',   label: 'Stitching',      icon: 'checkmark-done-circle-outline' },
+        { key: 'ready',       label: 'Ready',          icon: 'bag-check-outline' },
     ];
 
-    const currentStageIdx = progressStages.findIndex(s => s.key === order.productionStage);
+    // If the order is delivered, treat all stages as completed
+    const isDelivered = (order.status || '').toLowerCase() === 'delivered';
+    const currentStageIdx = isDelivered
+        ? progressStages.length  // all complete
+        : progressStages.findIndex(s => s.key === (order.productionStage || 'pending').toLowerCase());
+
 
     return (
         <ScreenWrapper useSafeTop>
@@ -194,6 +206,29 @@ const OrderDetailScreen = ({ route, navigation }) => {
                         <Text style={styles.deliveryDate}>{formatDate(order.deliveryDate)}</Text>
                     </View>
                 </Card>
+
+                <View style={{ height: 20 }} />
+
+                {order.status === 'Ready' && (
+                    <FormButton
+                        title="Mark as Delivered"
+                        icon="cube-outline"
+                        onPress={() => {
+                            Alert.alert(
+                                'Confirm Delivery',
+                                `Mark ${order.orderNo} as delivered?`,
+                                [
+                                    { text: 'Cancel', style: 'cancel' },
+                                    { text: 'Yes, Delivered', onPress: async () => {
+                                        await useOrderStore.getState().markAsDelivered(order);
+                                        navigation.goBack();
+                                    }}
+                                ]
+                            );
+                        }}
+                        style={{ marginBottom: SIZES.xl }}
+                    />
+                )}
 
                 <View style={{ height: 40 }} />
             </ScrollView>
@@ -373,7 +408,7 @@ const styles = StyleSheet.create({
         marginTop: 2,
     },
     paymentSummary: {
-        backgroundColor: COLORS.bgElevated,
+        backgroundColor: '#F8F9FA',
         borderRadius: SIZES.radiusMd,
         padding: SIZES.md,
     },
@@ -394,7 +429,7 @@ const styles = StyleSheet.create({
     },
     paymentDivider: {
         height: 1,
-        backgroundColor: COLORS.border,
+        backgroundColor: '#E9ECEF',
         marginVertical: SIZES.sm,
     },
     paymentFinalLabel: {
@@ -409,7 +444,7 @@ const styles = StyleSheet.create({
     },
     progressBarWrap: {
         height: 6,
-        backgroundColor: COLORS.borderLight,
+        backgroundColor: '#E9ECEF',
         borderRadius: 3,
         marginTop: SIZES.md,
         overflow: 'hidden',
@@ -434,8 +469,9 @@ const styles = StyleSheet.create({
     deliveryCard: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: COLORS.primaryMuted,
-        borderColor: COLORS.primarySoft,
+        backgroundColor: COLORS.primary + '10',
+        borderColor: COLORS.primary + '20',
+        borderWidth: 1,
     },
     deliveryLabel: {
         fontSize: SIZES.caption,

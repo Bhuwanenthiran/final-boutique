@@ -61,6 +61,9 @@ export const useOrderStore = create((set, get) => ({
         }
     },
 
+    // Alias for pull-to-refresh compatibility
+    fetchOrders: () => get().init(),
+
     // Stop all active listeners manually (useful on logout)
     destroy: () => {
         const { subs } = get();
@@ -82,6 +85,7 @@ export const useOrderStore = create((set, get) => ({
             filtered = filtered.filter(o =>
                 (o.customerName || '').toLowerCase().includes(q) ||
                 (o.designName || '').toLowerCase().includes(q) ||
+                (o.orderNo || '').toLowerCase().includes(q) ||
                 (o.id || '').toLowerCase().includes(q)
             );
         }
@@ -134,10 +138,53 @@ export const useOrderStore = create((set, get) => ({
     updateOrderStatus: async (id, status) => {
         set({ isLoading: true, error: null });
         try {
-            await orderService.updateOrder(id, { status });
-            set({ isLoading: false });
+            const updates = { status };
+            
+            // If marking as delivered, ensure we update production stage so it leaves active workflows
+            if (status.toLowerCase() === 'delivered') {
+                updates.productionStage = 'delivered';
+                updates.deliveredAt = Date.now();
+                updates.balanceAmount = 0;
+            }
+
+            await orderService.updateOrder(id, updates);
+            
+            // Immutably update state so UI reflects the new status immediately
+            set((state) => ({
+                orders: state.orders.map(order => 
+                    order.id === id ? { ...order, ...updates } : order
+                ),
+                isLoading: false
+            }));
         } catch (error) {
             set({ isLoading: false, error: 'Status update failed.' });
+            throw error;
+        }
+    },
+
+    markAsDelivered: async (targetOrder) => {
+        if (!targetOrder?.id) return;
+        set({ isLoading: true, error: null });
+        try {
+            const updates = {
+                status: 'delivered',
+                productionStage: 'delivered',
+                deliveredAt: Date.now(),
+                deliveredBy: targetOrder.tailorName || 'Staff',
+                balanceAmount: 0,
+            };
+
+            await orderService.updateOrder(targetOrder.id, updates);
+            
+            // Immutably update state so UI excludes it from active lists immediately
+            set((state) => ({
+                orders: state.orders.map(o => 
+                    o.id === targetOrder.id ? { ...o, ...updates } : o
+                ),
+                isLoading: false
+            }));
+        } catch (error) {
+            set({ isLoading: false, error: 'Delivery failed: ' + (error.message || 'Unknown error') });
             throw error;
         }
     },

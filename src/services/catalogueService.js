@@ -9,6 +9,7 @@ import { db, auth } from '../config/firebase';
 const HOLD_REF       = collection(db, 'holdOrders');
 const CANCELLED_REF  = collection(db, 'cancelledOrders');
 const ALTERATION_REF = collection(db, 'alterations');
+const DELIVERED_REF  = collection(db, 'deliveredOrders');
 
 /**
  * Strips undefined values so Firestore never throws.
@@ -135,6 +136,40 @@ class CatalogueService {
 
     async deleteAlteration(id) {
         await deleteDoc(doc(db, 'alterations', id));
+        return { id };
+    }
+
+    // ===== Delivered Orders =====
+    subscribeDeliveredOrders(callback) {
+        return onSnapshot(DELIVERED_REF, (snap) => {
+            const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            callback(data);
+        }, (err) => {
+            console.error('subscribeDeliveredOrders error:', err.message);
+            callback([]);
+        });
+    }
+
+    async addDeliveredOrder(order) {
+        const payload = clean({
+            orderNo:       order.orderNo || '',
+            customerName:  order.customerName || '',
+            designName:    order.designName || '',
+            totalAmount:   order.totalAmount || 0,
+            deliveredAt:   order.deliveredAt || Date.now(),
+            deliveredBy:   order.deliveredBy || auth.currentUser?.email || 'admin',
+            tailorId:      order.tailorId || null,
+            originalOrderId: order.id || null,
+            status:        'delivered',
+            createdAt:     serverTimestamp(),
+            createdBy:     auth.currentUser?.uid || 'anonymous',
+        });
+        const ref = await addDoc(DELIVERED_REF, payload);
+        return { id: ref.id, ...payload, deliveredAt: payload.deliveredAt };
+    }
+
+    async deleteDeliveredOrder(id) {
+        await deleteDoc(doc(db, 'deliveredOrders', id));
         return { id };
     }
 }

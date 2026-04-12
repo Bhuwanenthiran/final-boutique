@@ -33,11 +33,14 @@ const FinishingScreen = ({ navigation }) => {
     const error = useFinishingStore((s) => s.error);
     const clearError = useFinishingStore((s) => s.clearError);
     const updateOrderStatus = useOrderStore((s) => s.updateOrderStatus);
+    const markAsDelivered = useOrderStore((s) => s.markAsDelivered);
+    const orderLoading = useOrderStore((s) => s.isLoading);
 
     const [selectedOrder, setSelectedOrder] = useState(null);
     const [showApprovalModal, setShowApprovalModal] = useState(false);
     const [approverName, setApproverName] = useState('');
     const [showConfetti, setShowConfetti] = useState(false);
+    const [deliveryConfirm, setDeliveryConfirm] = useState(false);
     const fadeAnim = useRef(new Animated.Value(1)).current;
 
     // Auto-select first order when list loads
@@ -121,9 +124,28 @@ const FinishingScreen = ({ navigation }) => {
     const completedCount = CHECKLIST_ITEMS.filter(i => finishing[i.key]).length;
     const progressPercent = (completedCount / CHECKLIST_ITEMS.length) * 100;
 
+    const handleDelivery = async () => {
+        const order = orders.find(o => o.id === selectedOrder);
+        if (!order) {
+            console.warn("Finishing Delivery: No order found for ID", selectedOrder);
+            return;
+        }
+
+        try {
+            console.log("Finalizing delivery for order:", order.id);
+            await markAsDelivered(order);
+            setSelectedOrder(null);
+            Alert.alert('✅ Delivered!', `${order.customerName}'s order has been marked as delivered.`);
+        } catch (err) {
+            console.error("Delivery Error:", err);
+            Alert.alert('Error', 'Failed to complete delivery. Please check your connection.');
+        }
+    };
+
     return (
         <ScreenWrapper useSafeTop>
-            <LoadingOverlay visible={isLoading && !error} message="Processing..." />
+            {/* Only show loading overlay for finishing checklist operations, NOT for delivery */}
+            <LoadingOverlay visible={(isLoading || orderLoading) && !error} message="Processing..." />
             <ErrorOverlay
                 visible={!!error}
                 error={error}
@@ -219,15 +241,39 @@ const FinishingScreen = ({ navigation }) => {
                             );
                         })}
 
-                        {/* Approval Info */}
+                        {/* Delivery Section */}
                         {finishing.isReady && (
-                            <Card style={styles.approvalCard}>
-                                <Ionicons name="ribbon-outline" size={24} color={COLORS.success} />
-                                <View style={{ marginLeft: SIZES.md, flex: 1 }}>
-                                    <Text style={styles.approvalTitle}>Approved & Ready</Text>
-                                    <Text style={styles.approvalMeta}>By {finishing.approvedBy} on {formatDate(finishing.approvedAt)}</Text>
-                                </View>
-                            </Card>
+                            <View style={[styles.deliveryBtnSection, { zIndex: 100 }]}>
+                                {!deliveryConfirm ? (
+                                    <TouchableOpacity 
+                                        style={styles.mainDeliveryBtn}
+                                        onPress={() => setDeliveryConfirm(true)}
+                                        activeOpacity={0.7}
+                                    >
+                                        <Ionicons name="car-outline" size={24} color={COLORS.textOnPrimary} />
+                                        <Text style={styles.mainDeliveryBtnText}>Complete Delivery</Text>
+                                    </TouchableOpacity>
+                                ) : (
+                                    <View style={styles.confirmPanel}>
+                                        <Text style={styles.confirmText}>Are you sure this order is delivered?</Text>
+                                        <View style={styles.confirmActions}>
+                                            <TouchableOpacity 
+                                                style={[styles.confirmBtn, styles.cancelBtn]} 
+                                                onPress={() => setDeliveryConfirm(false)}
+                                            >
+                                                <Text style={styles.cancelBtnText}>Cancel</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity 
+                                                style={[styles.confirmBtn, styles.yesBtn]} 
+                                                onPress={handleDelivery}
+                                                disabled={orderLoading}
+                                            >
+                                                <Text style={styles.yesBtnText}>{orderLoading ? 'Processing...' : 'Yes, Delivered'}</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    </View>
+                                )}
+                            </View>
                         )}
 
                         {/* Mark as Ready Button */}
@@ -474,6 +520,69 @@ const styles = StyleSheet.create({
         color: COLORS.textSecondary,
         ...FONTS.regular,
         marginTop: 2,
+    },
+    deliveryBtnSection: {
+        marginTop: SIZES.lg,
+        padding: SIZES.md,
+        backgroundColor: COLORS.bgCard,
+        borderRadius: SIZES.radiusLg,
+        borderWidth: 1,
+        borderColor: COLORS.primary + '20',
+        ...SHADOWS.medium,
+    },
+    mainDeliveryBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: COLORS.primary,
+        paddingVertical: SIZES.md + 4,
+        borderRadius: SIZES.radiusMd,
+        ...SHADOWS.golden,
+    },
+    mainDeliveryBtnText: {
+        fontSize: SIZES.bodyLg,
+        color: COLORS.textOnPrimary,
+        ...FONTS.bold,
+        marginLeft: SIZES.sm,
+    },
+    confirmPanel: {
+        padding: SIZES.sm,
+        alignItems: 'center',
+    },
+    confirmText: {
+        fontSize: SIZES.body,
+        color: COLORS.textPrimary,
+        ...FONTS.medium,
+        marginBottom: SIZES.md,
+        textAlign: 'center',
+    },
+    confirmActions: {
+        flexDirection: 'row',
+        width: '100%',
+    },
+    confirmBtn: {
+        flex: 1,
+        paddingVertical: SIZES.md,
+        borderRadius: SIZES.radiusMd,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    cancelBtn: {
+        backgroundColor: COLORS.bgElevated,
+        marginRight: SIZES.sm,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+    },
+    yesBtn: {
+        backgroundColor: COLORS.success,
+    },
+    cancelBtnText: {
+        color: COLORS.textSecondary,
+        ...FONTS.medium,
+    },
+    yesBtnText: {
+        color: COLORS.textOnPrimary,
+        ...FONTS.bold,
     },
     readyBtnWrap: {
         marginTop: SIZES.xl,

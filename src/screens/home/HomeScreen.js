@@ -54,6 +54,11 @@ const HomeScreen = ({ navigation }) => {
     }, [initOrders]);
 
     const stats = React.useMemo(() => {
+        const totalRevenue = orders.reduce((sum, o) => sum + (parseFloat(o.totalAmount) || 0), 0);
+        const pendingCollection = orders.reduce((sum, o) => sum + (parseFloat(o.balanceAmount) || 0), 0);
+        const collectedAmount = totalRevenue - pendingCollection;
+        const collectionRate = totalRevenue > 0 ? (collectedAmount / totalRevenue) : 0;
+
         return {
             pendingOrders: orders.filter(o => o?.status?.toLowerCase() === 'pending').length,
             inProduction: orders.filter(o => {
@@ -61,7 +66,10 @@ const HomeScreen = ({ navigation }) => {
                 return ['in production', 'marking', 'cutting', 'active'].includes(s);
             }).length,
             readyOrders: orders.filter(o => o?.status?.toLowerCase() === 'ready').length,
-            totalRevenue: orders.reduce((sum, o) => sum + (parseFloat(o.totalAmount) || 0), 0),
+            totalRevenue,
+            pendingCollection,
+            collectedAmount,
+            collectionRate,
             recentOrders: orders.slice(0, 4)
         };
     }, [orders]);
@@ -70,6 +78,7 @@ const HomeScreen = ({ navigation }) => {
         { icon: 'add-circle-outline', label: 'New Order', color: C.primary, screen: 'OrderEntry' },
         { icon: 'cut-outline', label: 'Production', color: C.accent, screen: 'StitchingProduction' },
         { icon: 'checkmark-done-outline', label: 'Finishing', color: C.success, screen: 'Finishing' },
+        { icon: 'albums-outline', label: 'Catalogue', color: C.slate, screen: 'Catalogue' },
     ], [C]);
 
     return (
@@ -147,14 +156,14 @@ const HomeScreen = ({ navigation }) => {
                                 <Text style={[styles.revenueValue, { color: isDark ? C.textPrimary : C.textOnPrimary }]}>₹{stats.totalRevenue.toLocaleString('en-IN')}</Text>
                             </View>
                             <View style={[styles.revenueBadge, { backgroundColor: isDark ? C.bgElevated : 'rgba(107, 158, 107, 0.2)' }]}>
-                                <Ionicons name="trending-up" size={14} color={C.success} />
-                                <Text style={[styles.revenueBadgeText, { color: C.success }]}>+12%</Text>
+                                <Ionicons name="wallet-outline" size={14} color={C.success} />
+                                <Text style={[styles.revenueBadgeText, { color: C.success }]}>{(stats.collectionRate * 100).toFixed(0)}% Paid</Text>
                             </View>
                         </View>
                         <View style={[styles.revenueBar, { backgroundColor: isDark ? C.border : 'rgba(255,255,255,0.15)' }]}>
-                            <View style={[styles.revenueBarFill, { width: '72%', backgroundColor: C.primary }]} />
+                            <View style={[styles.revenueBarFill, { width: `${stats.collectionRate * 100}%`, backgroundColor: C.primary }]} />
                         </View>
-                        <Text style={[styles.revenueSubtext, { color: isDark ? C.textMuted : C.textLight }]}>₹{(stats.totalRevenue * 0.28).toLocaleString('en-IN', { maximumFractionDigits: 0 })} pending collection</Text>
+                        <Text style={[styles.revenueSubtext, { color: isDark ? C.textMuted : C.textLight }]}>₹{stats.pendingCollection.toLocaleString('en-IN')} pending collection</Text>
                     </View>
 
                     {/* Quick Actions */}

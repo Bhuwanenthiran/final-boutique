@@ -129,6 +129,23 @@ export const useAuthStore = create((set, get) => ({
     logout: async () => {
         set({ isLoading: true });
         try {
+            // 1. Clean up all real-time listeners first
+            const { useOrderStore } = await import('./orderStore');
+            const { useProductionStore } = await import('./productionStore');
+            const { useFinishingStore } = await import('./finishingStore'); // if it exists
+            const { useCatalogueStore } = await import('./catalogueStore');
+            const { useShootStore } = await import('./shootStore');
+
+            useOrderStore.getState().destroy();
+            useProductionStore.getState().destroy();
+            useCatalogueStore.getState().destroy();
+            useShootStore.getState().destroy();
+            
+            // Check if finishing store has destroy
+            const finishingStore = useFinishingStore.getState();
+            if (finishingStore.destroy) finishingStore.destroy();
+
+            // 2. Clear persisted session
             await clearSession();
         } finally {
             set({

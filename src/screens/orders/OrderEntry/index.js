@@ -23,7 +23,6 @@ const OrderEntryContainer = ({ navigation }) => {
     const C = getColors(isDark);
     const insets = useSafeAreaInsets();
     const [step, setStep] = useState(0);
-    const customers = useOrderStore((s) => s.customers);
     const designTemplates = useOrderStore((s) => s.designTemplates);
     const tailors = useOrderStore((s) => s.tailors);
 
@@ -61,9 +60,13 @@ const OrderEntryContainer = ({ navigation }) => {
     const handleCustomerSelect = (customerId) => {
         const customer = customers.find(c => c.id === customerId);
         if (customer) {
-            updateForm('customerId', customerId);
-            updateForm('customerName', customer.name);
-            updateForm('phone', customer.phone);
+            // Batch all three in one update so form state is always consistent
+            setForm(prev => ({
+                ...prev,
+                customerId,
+                customerName: customer.name || '',
+                phone: customer.phone || '',
+            }));
         }
     };
 
@@ -135,7 +138,11 @@ const OrderEntryContainer = ({ navigation }) => {
 
     const handleSaveDraft = () => {
         saveDraft(form);
-        Alert.alert('Saved', 'Draft saved successfully!');
+        if (Platform.OS === 'web') {
+            window.alert('Draft saved successfully!');
+        } else {
+            Alert.alert('Saved', 'Draft saved successfully!');
+        }
     };
 
 
@@ -147,8 +154,6 @@ const OrderEntryContainer = ({ navigation }) => {
                 return (
                     <StepCustomer
                         {...commonProps}
-                        customers={customers}
-                        handleCustomerSelect={handleCustomerSelect}
                     />
                 );
             case 1:

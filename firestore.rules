@@ -1,0 +1,108 @@
+rules_version = '2';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Mellinam Designer Studio — Firestore Security Rules
+// Project: boutique-management-app-b63bc
+// ─────────────────────────────────────────────────────────────────────────────
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper: Basic Auth ────────────────────────────────────────────────────
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // ── Helper: Role Checks ────────────────────────────────────────────────────
+    // Fetches the user role from the 'users' collection
+    function getRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && getRole() == 'admin';
+    }
+
+    function isStaff() {
+      return isAuthenticated() && getRole() == 'staff';
+    }
+
+    // ── Orders ────────────────────────────────────────────────────────────────
+    match /orders/{orderId} {
+      allow read: if isAuthenticated();
+      // Allow creation by any authenticated user (Admin or Staff)
+      allow create: if isAuthenticated();
+      // Staff can only update if they are the assigned tailorId
+      allow update: if isAdmin() || (isStaff() && resource.data.tailorId == request.auth.uid);
+      // ONLY Admin can delete orders
+      allow delete: if isAdmin();
+    }
+
+    // ── Customers ─────────────────────────────────────────────────────────────
+    match /customers/{customerId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated(); // Both can manage customers
+    }
+
+    // ── Master Data (Designs & Tailors) ───────────────────────────────────────
+    match /designs/{designId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin(); // Only Admin edits templates
+    }
+
+    match /tailors/{tailorId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin(); // Only Admin manages staff lists
+    }
+
+    // ── Metadata (Counters) ───────────────────────────────────────────────────
+    match /metadata/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated(); // Needed for order numbering txn
+    }
+
+    // ── Catalogue (Hold, Cancelled, Alterations) ──────────────────────────────
+    match /holdOrders/{docId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin() || (isStaff() && resource.data.tailorId == request.auth.uid);
+    }
+
+    match /cancelledOrders/{docId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
+    }
+
+    match /alterations/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated(); // All can log alterations
+    }
+
+    // ── Shoots ────────────────────────────────────────────────────────────────
+    match /shoots/{orderId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // ── Delivered Orders ──────────────────────────────────────────────────────
+    match /deliveredOrders/{docId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin() || (isStaff() && request.resource.data.tailorId == request.auth.uid);
+      allow update: if isAdmin() || (isStaff() && resource.data.tailorId == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
+    // ── Users (System Users) ──────────────────────────────────────────────────
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      // Users can only update their own profile; Admin can create users
+      allow write: if isAdmin() || (isAuthenticated() && request.auth.uid == userId);
+    }
+
+    // ── DENY EVERYTHING ELSE ──────────────────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
