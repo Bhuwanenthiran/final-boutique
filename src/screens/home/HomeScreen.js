@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Dimensions, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Dimensions, RefreshControl, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SIZES, FONTS, SHADOWS, getColors } from '../../theme';
@@ -109,10 +109,15 @@ const HomeScreen = ({ navigation }) => {
                 >
                     {/* Header */}
                     <View style={styles.header}>
-                        <View>
+                        <View style={{ flex: 1 }}>
                             <Text style={[styles.greeting, { color: C.textMuted }]}>Welcome back</Text>
                             <Text style={[styles.title, { color: C.textPrimary }]}>Mellinam Designer Studio</Text>
                         </View>
+                        <Image 
+                            source={require('../../../assets/logo.jpg')} 
+                            style={styles.headerLogo}
+                            resizeMode="contain"
+                        />
                     </View>
 
                     {/* Stats Cards */}
@@ -491,6 +496,11 @@ const styles = StyleSheet.create({
         fontSize: SIZES.bodyLg,
         color: COLORS.primary,
         ...FONTS.bold,
+    },
+    headerLogo: {
+        width: 48,
+        height: 48,
+        borderRadius: 8,
     },
 });
 

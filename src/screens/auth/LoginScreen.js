@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, KeyboardAvoidingView, Platform, TouchableOpacity, ScrollView, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SIZES, FONTS, SHADOWS, getColors } from '../../theme';
 import { useThemeStore } from '../../store/themeStore';
@@ -59,8 +59,12 @@ const LoginScreen = () => {
                 >
                     {/* Logo & Branding */}
                     <View style={styles.header}>
-                        <View style={[styles.logoWrap, { backgroundColor: C.primaryMuted }]}>
-                            <Ionicons name="diamond-outline" size={48} color={C.primary} />
+                        <View style={styles.logoWrap}>
+                            <Image 
+                                source={require('../../../assets/logo.jpg')} 
+                                style={styles.logo}
+                                resizeMode="contain"
+                            />
                         </View>
                         <Text style={[styles.title, { color: C.textPrimary }]}>Mellinam Designer Studio</Text>
                         <Text style={[styles.subtitle, { color: C.textMuted }]}>Management System</Text>
@@ -152,14 +156,15 @@ const styles = StyleSheet.create({
         marginBottom: SIZES.xxxl,
     },
     logoWrap: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
-        backgroundColor: COLORS.primaryMuted,
+        width: 120,
+        height: 120,
+        marginBottom: SIZES.lg,
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: SIZES.lg,
-        ...SHADOWS.medium,
+    },
+    logo: {
+        width: '100%',
+        height: '100%',
     },
     title: {
         fontSize: SIZES.heading,
